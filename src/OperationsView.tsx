@@ -33,34 +33,25 @@ import ContentPanel from './virtualPatrol/ContentPanel';
 import CCTVPanelsColumn from './virtualPatrol/CCTVPanelsColumn';
 
 export default function OperationsView() {
-    // ============================================================================
-    // 3D VIEW CONTROLLER (stable reference, created once)
-    // ============================================================================
     const threeDController = useRef<ThreeDViewController>(createThreeDViewController()).current;
     
-    // App state
     const [appMode, setAppMode] = useState<'presentation' | 'configuration'>('presentation');
     const [selectedProject, setSelectedProject] = useState<string>('proj1');
     const leftPanelOpen = true;
     
-    // Route selection
     const [selectedRoutes, setSelectedRoutes] = useState<string[]>([]);
     const [routePanels, setRoutePanels] = useState<Record<string, RoutePanelLayout | undefined>>({});
     const [routeColors, setRouteColors] = useState<Record<string, string>>({});
     const [activePanel, setActivePanel] = useState<string | null>(null);
     
-    // Pinned routes (workspace)
     const [pinnedRoutes, setPinnedRoutes] = useState<string[]>([]);
     
-    // Hide/Show controls
     const [hiddenRoutes, setHiddenRoutes] = useState<string[]>([]);
     
-    // Advanced search
     const [searchMode, setSearchMode] = useState<'routes' | 'anchors' | 'entities'>('routes');
     const [searchResults, setSearchResults] = useState<RouteSearchResult[]>([]);
     const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
     
-    // Virtual Patrol state
     const [patrolMode, setPatrolMode] = useState<PatrolMode>({
         active: false,
         routeId: null,
@@ -71,30 +62,20 @@ export default function OperationsView() {
         nextCCTVs: []
     });
     
-    // Fullscreen CCTV
     const [fullscreenCCTV, setFullscreenCCTV] = useState<ContentItem | null>(null);
     
-    // ============================================================================
-    // PATROL ADVANCEMENT: Driven by 3D view calling handle3DNavigationDone()
-    // Module sends navigate_segment_id, 3D view animates, then calls callback
-    // No countdown timer - 3D view controls all timing
-    // ============================================================================
     
-    // Color picker
     const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
     const [colorMode, setColorMode] = useState<'instance' | 'type'>('instance');
     const [anchorColors, setAnchorColors] = useState<Record<string, string>>({});
     
-    // Plans system
     const [plans, setPlans] = useState<Plan[]>(() => loadPlans<Plan>(selectedProject));
     const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
     const [planName, setPlanName] = useState<string>('');
     const [showPlansPanel, setShowPlansPanel] = useState<boolean>(false);
     
-    // Content panels
     const [contentPanels, setContentPanels] = useState<ContentPanelState[]>([]);
     
-    // Search
     const [searchQuery, setSearchQuery] = useState<string>('');
     const {
         ROUTE_COLORS,
@@ -109,33 +90,23 @@ export default function OperationsView() {
         routeEntities
     } = useMockData();
     
-    // Filter routes by current project
     const routes: Route[] = allRoutes.filter(r => r.projectId === selectedProject);
     
-    // Filter selected routes to only include valid ones for current project
     const validSelectedRoutes = useMemo(
         () => buildValidSelectedRoutes(selectedRoutes, routes),
         [selectedRoutes, routes]
     );
     
     
-    // ============================================================================
-    // NOTE: Auto-advance is handled by 3D view calling onNavigationDone callback
-    // Countdown timer REMOVED - 3D view controls pacing via 10-second animation
-    // ============================================================================
     
-    // Reload plans when project changes
     useEffect(() => {
         setPlans(loadPlans<Plan>(selectedProject));
     }, [selectedProject]);
     
-    // Track previous project to detect actual changes
     const prevProjectRef = useRef(selectedProject);
     
     useEffect(() => {
-        // Only clear if project actually changed (not initial render)
         if (prevProjectRef.current !== selectedProject) {
-            // Clear all state - no preservation
             setSelectedRoutes([]);
             setRoutePanels({});
             setRouteColors({});
@@ -145,7 +116,6 @@ export default function OperationsView() {
             setContentPanels([]);
             setActivePanel(null);
             
-            // Stop patrol
             if (patrolMode.active) {
                 setPatrolMode({
                     active: false,
@@ -160,40 +130,29 @@ export default function OperationsView() {
                 setFullscreenCCTV(null);
             }
             
-            // Update ref
             prevProjectRef.current = selectedProject;
         }
     }, [selectedProject, patrolMode.active]);
     
-    // ============================================================================
-    // 3D VIEW DATA CONTRACT
-    // ============================================================================
     
-    // ============================================================================
-    // 3D VIEW CONFIGURATION (loaded once, defines available anchors/segments)
-    // ============================================================================
     
     const threeDViewConfig = useMemo<ThreeDViewConfig>(() => {
-        // Build anchors from all anchors in the system
         const configAnchors: ThreeDViewAnchor[] = anchors.map(anchor => ({
             name: anchor.id, // Using ID as name for now (TODO: use actual names in config mode)
             point: { x: 0, y: 0, z: 0 } // TODO: Add real coordinates in Config Mode
         }));
         
-        // Build segments from all routes
         const configSegments: ThreeDViewSegment[] = routes.flatMap(route => {
             return Array.from({ length: route.segments }, (_, i) => {
                 const segmentNumber = i + 1;
                 const segmentName = `${route.id}-seg${segmentNumber}`;
                 
-                // Assign routes to different viewports for testing hidden anchors feature
                 let viewportName = 'Viewport 1'; // Default
                 if (route.id === 'r2' || route.id === 'm2') {
                     viewportName = 'Viewport 2';
                 } else if (route.id === 'r3' || route.id === 'm3') {
                     viewportName = 'Viewport 3';
                 }
-                // r1, r4, m1, m4 stay on Viewport 1
                 
                 return {
                     name: segmentName,
@@ -204,7 +163,6 @@ export default function OperationsView() {
             });
         });
         
-        // Define viewports
         const configViewports: ThreeDViewViewport[] = [
             { name: 'Viewport 1', camera: {} },
             { name: 'Viewport 2', camera: {} },
@@ -218,9 +176,6 @@ export default function OperationsView() {
         };
     }, [routes, anchors]);
     
-    // ============================================================================
-    // 3D VIEW DISPLAY COMMAND (frequent updates, what to show with colors)
-    // ============================================================================
     
     const prepareDisplayBundles = useMemo<SegmentDisplayBundle[]>(() => buildDisplayBundles({
         validSelectedRoutes,
@@ -244,29 +199,19 @@ export default function OperationsView() {
         patrolMode.currentSegment
     ]);
     
-    // ============================================================================
-    // SEND DISPLAY COMMAND TO 3D VIEW (whenever display bundles change)
-    // ============================================================================
     
     useEffect(() => {
         threeDController.setDisplayedSegments(prepareDisplayBundles);
     }, [prepareDisplayBundles, threeDController]);
     
-    // ============================================================================
-    // 3D VIEW EVENT HANDLERS (segment/anchor clicks)
-    // ============================================================================
     
     useEffect(() => {
-        // Handle segment clicks from 3D view
         const unsubSegment = threeDController.onSegmentClick((event) => {
             console.log('[3D View] Segment clicked:', event.segment_name);
-            // TODO: Handle segment selection (navigate to that segment)
         });
         
-        // Handle anchor clicks from 3D view  
         const unsubAnchor = threeDController.onAnchorClick((event) => {
             console.log('[3D View] Anchor clicked:', event.anchor_name);
-            // TODO: Handle anchor selection (show anchor details)
         });
         
         return () => {
@@ -275,16 +220,12 @@ export default function OperationsView() {
         };
     }, [threeDController]);
     
-    // ============================================================================
-    // Handlers
     const toggleRoute = (routeId: string): void => {
-        // Prevent any route changes during patrol
         if (patrolMode.active) {
             return;
         }
         
         if (selectedRoutes.includes(routeId)) {
-            // Deselect
             setSelectedRoutes(prev => prev.filter(id => id !== routeId));
             setRoutePanels(prev => {
                 const newPanels = { ...prev };
@@ -296,7 +237,6 @@ export default function OperationsView() {
                 setActivePanel(remaining.length > 0 ? remaining[0] : null);
             }
         } else {
-            // Select
             const newSelected = [...selectedRoutes, routeId];
             setSelectedRoutes(newSelected);
             setRoutePanels(prev => ({
@@ -304,14 +244,12 @@ export default function OperationsView() {
                 [routeId]: createFloatingPanelLayout(newSelected.length - 1)
             }));
             
-            // Assign color
             const colorIndex = newSelected.length - 1;
             setRouteColors(prev => ({ ...prev, [routeId]: getRouteColorByIndex(ROUTE_COLORS, colorIndex) }));
             setActivePanel(routeId);
         }
     };
     
-    // Pin/Unpin to workspace
     const togglePinRoute = (routeId: string): void => {
         if (pinnedRoutes.includes(routeId)) {
             setPinnedRoutes(prev => prev.filter(id => id !== routeId));
@@ -320,16 +258,13 @@ export default function OperationsView() {
         }
     };
     
-    // Send pinned routes to 3D view
     const sendPinnedToView = () => {
-        // Get routes that need to be added
         const routesToAdd = pinnedRoutes.filter(routeId => !selectedRoutes.includes(routeId));
         
         if (routesToAdd.length === 0) {
             return; // All pinned routes already in view
         }
         
-        // Use callback-based state updates to ensure we're working with latest state
         setSelectedRoutes(prev => [...prev, ...routesToAdd]);
         
         setRoutePanels(prev => {
@@ -356,7 +291,6 @@ export default function OperationsView() {
             return newColors;
         });
         
-        // Set first new route as active
         if (routesToAdd.length > 0) {
             setActivePanel(routesToAdd[0]);
         }
@@ -367,40 +301,32 @@ export default function OperationsView() {
             return; // Already in view
         }
         
-        // Add route
         const newSelected = [...selectedRoutes, routeId];
         setSelectedRoutes(newSelected);
         
-        // Create panel
         setRoutePanels(prev => ({
             ...prev,
             [routeId]: createFloatingPanelLayout(newSelected.length - 1)
         }));
         
-        // Assign color
         const colorIndex = (newSelected.length - 1) % ROUTE_COLORS.length;
         setRouteColors(prev => ({ ...prev, [routeId]: getRouteColorByIndex(ROUTE_COLORS, colorIndex) }));
         
-        // Set as active
         setActivePanel(routeId);
     };
     
-    // Hide/Show handlers
     const hideAllRoutes = (): void => {
-        // Prevent during patrol
         if (patrolMode.active) return;
         
         setHiddenRoutes([...selectedRoutes]);
     };
     
     const showAllRoutes = (): void => {
-        // Prevent during patrol
         if (patrolMode.active) return;
         
         setHiddenRoutes([]);
     };
     
-    // Advanced search function
     const performSearch = (query: string): void => {
         if (!query.trim()) {
             setSearchResults([]);
@@ -412,7 +338,6 @@ export default function OperationsView() {
         const results: RouteSearchResult[] = [];
         
         if (searchMode === 'routes') {
-            // Search in route names and descriptions
             routes.forEach(route => {
                 const matches: SearchMatch[] = [];
                 if (route.name.toLowerCase().includes(q)) {
@@ -430,7 +355,6 @@ export default function OperationsView() {
                 }
             });
         } else if (searchMode === 'anchors') {
-            // Search for routes containing matching anchors
             routes.forEach(route => {
                 const matchingAnchors: Array<{ segment: number; anchor: Anchor }> = [];
                 
@@ -461,7 +385,6 @@ export default function OperationsView() {
                 }
             });
         } else if (searchMode === 'entities') {
-            // Search for routes containing matching entities
             routes.forEach(route => {
                 const assignedEntityIds = routeEntities[route.id] || [];
                 const matchingEntities = assignedEntityIds
@@ -586,7 +509,6 @@ export default function OperationsView() {
                 resize: 'both'
             };
         } else if (panel.position === 'left') {
-            // Compact patrol panel on left
             if (isPatrolActive) {
                 return {
                     ...base,
@@ -601,7 +523,6 @@ export default function OperationsView() {
                 };
             }
             
-            // Normal left panel stacking
             const leftPinnedRoutes = selectedRoutes.filter(rid => routePanels[rid]?.position === 'left');
             const index = leftPinnedRoutes.indexOf(routeId);
             const totalPinned = leftPinnedRoutes.length;
@@ -617,7 +538,6 @@ export default function OperationsView() {
                 borderRadius: '0 12px 12px 0'
             };
         } else if (panel.position === 'right') {
-            // Compact patrol panel on right - offset for CCTV panel
             if (isPatrolActive) {
                 return {
                     ...base,
@@ -632,7 +552,6 @@ export default function OperationsView() {
                 };
             }
             
-            // Normal right panel stacking - also offset for CCTV
             const rightPinnedRoutes = selectedRoutes.filter(rid => routePanels[rid]?.position === 'right');
             const index = rightPinnedRoutes.indexOf(routeId);
             const totalPinned = rightPinnedRoutes.length;
@@ -648,7 +567,6 @@ export default function OperationsView() {
                 borderRadius: '12px 0 0 12px'
             };
         } else if (panel.position === 'bottom') {
-            // Compact patrol panel on bottom
             if (isPatrolActive) {
                 return {
                     ...base,
@@ -665,7 +583,6 @@ export default function OperationsView() {
                 };
             }
             
-            // Normal bottom panel stacking - reduce width if CCTV visible
             const bottomPinnedRoutes = selectedRoutes.filter(rid => routePanels[rid]?.position === 'bottom');
             const index = bottomPinnedRoutes.indexOf(routeId);
             const totalPinned = bottomPinnedRoutes.length;
@@ -685,15 +602,11 @@ export default function OperationsView() {
         return base;
     };
     
-    // ============================================================================
-    // VIRTUAL PATROL FUNCTIONS
-    // ============================================================================
     
     const startVirtualPatrol = (routeId: string, startSegment: number): void => {
         const route = routes.find(r => r.id === routeId);
         if (!route) return;
         
-        // Get CCTVs for current and next segment
         const currentCCTVs = getSegmentCCTVs(routeId, startSegment);
         const nextCCTVs = startSegment < route.segments ? getSegmentCCTVs(routeId, startSegment + 1) : [];
         
@@ -708,11 +621,9 @@ export default function OperationsView() {
             nextCCTVs
         });
         
-        // Hide all other routes
         const otherRoutes = selectedRoutes.filter(id => id !== routeId);
         setHiddenRoutes(otherRoutes);
         
-        // Clear all content panels
         setContentPanels([]);
     };
     
@@ -739,9 +650,6 @@ export default function OperationsView() {
         setFullscreenCCTV(null);
     };
     
-    // ============================================================================
-    // PLANS MANAGEMENT
-    // ============================================================================
     
     const savePlan = (): void => {
         if (!planName.trim()) return;
@@ -769,7 +677,6 @@ export default function OperationsView() {
         setRouteColors(plan.routeColors);
         setAnchorColors(plan.anchorColors);
         
-        // Initialize route panels for loaded routes
         const newPanels: Record<string, RoutePanelLayout> = {};
         plan.selectedRoutes.forEach(routeId => {
             if (!routePanels[routeId]) {
@@ -789,7 +696,6 @@ export default function OperationsView() {
         persistPlans(selectedProject, updatedPlans);
     };
     
-    // ============================================================================
     
     const goToPreviousSegment = (): void => {
         if (patrolMode.currentSegment <= 1) return;
@@ -900,7 +806,6 @@ export default function OperationsView() {
         setColorPicker(null);
     };
     
-    // Calculate stats for routes
     const getRouteStats = (routeId: string): RouteStats => {
         let anchorCount = 0;
         let contentCount = 0;

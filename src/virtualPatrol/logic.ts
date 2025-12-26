@@ -1,4 +1,3 @@
-// Shared non-UI helpers for the Virtual Patrol prototype.
 import type {
     PatrolMode,
     Route,

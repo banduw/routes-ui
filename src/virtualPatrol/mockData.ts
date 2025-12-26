@@ -26,12 +26,10 @@ const projects: Project[] = [
 ];
 
 const allRoutes: Route[] = [
-    // Tiong Bahru Plaza
     { id: 'r1', projectId: 'proj1', name: 'North Wing Corridor', type: 'evacuation', segments: 5, description: 'Main evacuation route' },
     { id: 'r2', projectId: 'proj1', name: 'South Wing Patrol', type: 'patrol', segments: 8, description: 'Security patrol route' },
     { id: 'r3', projectId: 'proj1', name: 'Emergency Exit A', type: 'evacuation', segments: 3, description: 'Fire escape route' },
     { id: 'r4', projectId: 'proj1', name: 'West Lobby Circuit', type: 'patrol', segments: 6, description: 'Lobby monitoring route' },
-    // Marina Square
     { id: 'm1', projectId: 'proj2', name: 'East Wing Security', type: 'patrol', segments: 4, description: 'East wing patrol path' },
     { id: 'm2', projectId: 'proj2', name: 'Central Atrium Route', type: 'evacuation', segments: 6, description: 'Main evacuation corridor' },
     { id: 'm3', projectId: 'proj2', name: 'Basement Patrol', type: 'patrol', segments: 7, description: 'Underground parking patrol' },

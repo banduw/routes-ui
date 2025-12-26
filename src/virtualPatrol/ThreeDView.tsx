@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
-// 3D View Types (aligned with mock-3dview-spec.md)
 export interface Point3D {
     x: number;
     y: number;
     z: number;
 }
 
-// Config types (loaded once into 3D view)
 export interface ThreeDViewAnchor {
     name: string;
     point: Point3D;
@@ -31,7 +29,6 @@ export interface ThreeDViewConfig {
     viewports: ThreeDViewViewport[];
 }
 
-// Display command types (frequent updates)
 export type HexColor = string; // "#RRGGBB" format
 
 export interface AnchorRefWithColor {
@@ -45,7 +42,6 @@ export interface SegmentDisplayBundle {
     anchors: AnchorRefWithColor[];
 }
 
-// Event types (callbacks from 3D view)
 export interface SegmentClickEvent {
     segment_name: string;
 }
@@ -54,25 +50,19 @@ export interface AnchorClickEvent {
     anchor_name: string;
 }
 
-// Controller interface (imperative API)
 export interface ThreeDViewController {
-    // Queries (read-only)
     getAnchorNames(): string[];
     getSegmentNames(): string[];
     
-    // Display command (frequent updates)
     setDisplayedSegments(items: SegmentDisplayBundle[]): void;
     
-    // Event subscriptions
     onAnchorClick(cb: (ev: AnchorClickEvent) => void): () => void; // returns unsubscribe
     onSegmentClick(cb: (ev: SegmentClickEvent) => void): () => void;
     
-    // Internal lifecycle (used by ThreeDView component)
     _registerHost(host: any): void;
     _unregisterHost(): void;
 }
 
-// 3D VIEW CONTROLLER FACTORY
 export function createThreeDViewController(): ThreeDViewController {
     let host: any = null;
     const anchorClickCallbacks: Array<(ev: AnchorClickEvent) => void> = [];
@@ -114,7 +104,6 @@ export function createThreeDViewController(): ThreeDViewController {
             };
         },
         
-        // Internal lifecycle
         _registerHost(h: any): void {
             host = h;
             host._setAnchorClickCallbacks(anchorClickCallbacks);
@@ -127,9 +116,7 @@ export function createThreeDViewController(): ThreeDViewController {
     };
 }
 
-// MOCK 3D VIEW COMPONENT (Spec Compliant)
 export function ThreeDView({ controller, config }: { controller: ThreeDViewController; config: ThreeDViewConfig }) {
-    // State
     const [displayedSegments, setDisplayedSegments] = useState<SegmentDisplayBundle[]>([]);
     const [currentViewportName, setCurrentViewportName] = useState<string | null>(null);
     const [lastClickedSegment, setLastClickedSegment] = useState<string | null>(null);
@@ -137,14 +124,11 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
     const [showHiddenAnchors, setShowHiddenAnchors] = useState<boolean>(false);
     const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false);
     
-    // Callback storage
     const segmentClickCallbacks = useRef<Array<(ev: SegmentClickEvent) => void>>([]);
     const anchorClickCallbacks = useRef<Array<(ev: AnchorClickEvent) => void>>([]);
     
-    // Indexes
     const segmentsByName = useRef<Map<string, ThreeDViewSegment>>(new Map());
     
-    // Initialize indexes from config
     useEffect(() => {
         if (!config || !config.segments) return;
         
@@ -154,13 +138,11 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
         });
     }, [config]);
     
-    // Register with controller
     useEffect(() => {
         const host = {
             setDisplayedSegments: (items: SegmentDisplayBundle[]) => {
                 setDisplayedSegments(items);
                 
-                // Set viewport from first segment
                 if (items.length > 0) {
                     const firstSegment = segmentsByName.current.get(items[0].segment_name);
                     if (firstSegment) {
@@ -188,7 +170,6 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
         };
     }, [controller]);
     
-    // Early return if no config
     if (!config || !config.anchors || !config.segments || !config.viewports) {
         return (
             <div style={{
@@ -205,7 +186,6 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
         );
     }
     
-    // Compute visible/hidden segments
     const visibleSegments = displayedSegments.filter(bundle => {
         const segment = segmentsByName.current.get(bundle.segment_name);
         return segment && segment.viewport_name === currentViewportName;
@@ -216,7 +196,6 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
         return !segment || segment.viewport_name !== currentViewportName;
     });
     
-    // Compute visible/hidden anchors
     const visibleAnchorMap = new Map<string, string>();
     visibleSegments.forEach(bundle => {
         bundle.anchors.forEach(anchor => {
@@ -233,7 +212,6 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
         });
     });
     
-    // Click handlers
     const handleSegmentClick = (segmentName: string) => {
         setLastClickedSegment(segmentName);
         setTimeout(() => setLastClickedSegment(null), 300);
@@ -259,7 +237,6 @@ export function ThreeDView({ controller, config }: { controller: ThreeDViewContr
         anchorClickCallbacks.current.forEach(cb => cb(event));
     };
     
-    // Diagnostics
     const getDiagnostics = () => {
         if (!config) return ['⚠️ Config not loaded'];
         const diagnostics: string[] = [];
