@@ -1,24 +1,23 @@
+import { useMemo } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Eye, MapPin, Palette, Check, X } from 'lucide-react';
 import type { CSSProperties, Dispatch, MouseEventHandler, SetStateAction } from 'react';
 import type {
         Anchor,
         ColorPickerState,
         ContentItem,
-        Entity,
         PatrolMode,
-        Route,
         RoutePanelLayout
 } from './types';
+import { useMockDataCtx } from './MockDataProvider';
 
 interface RoutePanelProps {
-        route: Route;
+        routeId: string;
         panel: RoutePanelLayout;
         routeColor: string;
         isActive: boolean;
         style: CSSProperties;
         colorPicker: ColorPickerState | null;
         setColorPicker: Dispatch<SetStateAction<ColorPickerState | null>>;
-        AVAILABLE_COLORS: Array<{ value: string; name: string }>;
         setRouteColor: (routeId: string, color: string) => void;
         patrolMode: PatrolMode;
         onHeaderMouseDown: MouseEventHandler<HTMLDivElement>;
@@ -33,24 +32,19 @@ interface RoutePanelProps {
         stopPatrol: () => void;
         goToPreviousSegment: () => void;
         goToNextSegment: () => void;
-        segAnchors: Anchor[];
         anchorColors: Record<string, string>;
         setAnchorColor: (anchorId: string, color: string) => void;
-        contentToAnchor: Record<string, string[]>;
-        content: ContentItem[];
         openContent: (contentItem: ContentItem) => void;
-        assignedEntities: Entity[];
 }
 
 export default function RoutePanel({
-        route,
+        routeId,
         panel,
         routeColor,
         isActive,
         style,
         colorPicker,
         setColorPicker,
-        AVAILABLE_COLORS,
         setRouteColor,
         patrolMode,
         onHeaderMouseDown,
@@ -65,14 +59,36 @@ export default function RoutePanel({
         stopPatrol,
         goToPreviousSegment,
         goToNextSegment,
-        segAnchors,
         anchorColors,
         setAnchorColor,
-        contentToAnchor,
-        content,
-        openContent,
-        assignedEntities
+        openContent
 }: RoutePanelProps) {
+    const {
+        AVAILABLE_COLORS,
+        allRoutes,
+        anchors,
+        content,
+        contentToAnchor,
+        anchorToRoute,
+        routeEntities,
+        entities
+    } = useMockDataCtx();
+
+    const route = useMemo(() => allRoutes.find(r => r.id === routeId), [allRoutes, routeId]);
+    const segAnchors = useMemo<Anchor[]>(() => {
+        const key = `${routeId}-${panel.segment}`;
+        return (anchorToRoute[key] || [])
+            .map(aid => anchors.find(anchor => anchor.id === aid))
+            .filter((anchor): anchor is Anchor => Boolean(anchor));
+    }, [anchorToRoute, anchors, panel.segment, routeId]);
+    const assignedEntities = useMemo(() => {
+        return (routeEntities[routeId] || [])
+            .map(entityId => entities.find(entity => entity.id === entityId))
+            .filter((entity): entity is NonNullable<typeof entity> => Boolean(entity));
+    }, [entities, routeEntities, routeId]);
+
+    if (!route) return null;
+
     return (
         <div onClick={onActivate} style={{ ...style, zIndex: isActive ? 1000 : 900 }}>
             <div
@@ -96,14 +112,14 @@ export default function RoutePanel({
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setColorPicker(prev => prev?.type === 'route' && prev?.id === route.id ? null : { type: 'route', id: route.id });
+                                setColorPicker(prev => prev?.type === 'route' && prev?.id === routeId ? null : { type: 'route', id: routeId });
                             }}
                             style={{ padding: '4px 6px', backgroundColor: '#3a3a3a', border: 'none', color: '#aaa', borderRadius: '4px', cursor: 'pointer' }}
                         >
                             <Palette size={14} />
                         </button>
 
-                        {colorPicker?.type === 'route' && colorPicker?.id === route.id && (
+                        {colorPicker?.type === 'route' && colorPicker?.id === routeId && (
                             <div
                                 onClick={(e) => e.stopPropagation()}
                                 style={{ position: 'absolute', right: 0, top: '100%', marginTop: '4px', backgroundColor: '#1a1a1a', border: '1px solid #444', borderRadius: '8px', padding: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', zIndex: 2000, minWidth: '180px' }}
@@ -120,7 +136,7 @@ export default function RoutePanel({
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                                setRouteColor(route.id, c.value);
+                                                setRouteColor(routeId, c.value);
                                             }}
                                             style={{ width: '36px', height: '36px', borderRadius: '6px', backgroundColor: c.value, border: routeColor === c.value ? '3px solid white' : '2px solid #333', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         >
@@ -150,25 +166,25 @@ export default function RoutePanel({
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
                             onClick={onSegmentPrev}
-                            disabled={panel.segment === 1 || (patrolMode.active && patrolMode.routeId === route.id)}
-                            style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: panel.segment === 1 ? '#3a3a3a' : routeColor, border: 'none', color: 'white', cursor: (panel.segment === 1 || (patrolMode.active && patrolMode.routeId === route.id)) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 600, opacity: (panel.segment === 1 || (patrolMode.active && patrolMode.routeId === route.id)) ? 0.5 : 1 }}
+                            disabled={panel.segment === 1 || (patrolMode.active && patrolMode.routeId === routeId)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: panel.segment === 1 ? '#3a3a3a' : routeColor, border: 'none', color: 'white', cursor: (panel.segment === 1 || (patrolMode.active && patrolMode.routeId === routeId)) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 600, opacity: (panel.segment === 1 || (patrolMode.active && patrolMode.routeId === routeId)) ? 0.5 : 1 }}
                         >
                             ← Prev
                         </button>
                         <div style={{ flex: 1, textAlign: 'center', fontSize: '14px', fontWeight: 700, color: routeColor }}>
-                            Segment {(patrolMode.active && patrolMode.routeId === route.id) ? patrolMode.currentSegment : panel.segment} / {route.segments}
+                            Segment {(patrolMode.active && patrolMode.routeId === routeId) ? patrolMode.currentSegment : panel.segment} / {route.segments}
                         </div>
                         <button
                             onClick={onSegmentNext}
-                            disabled={panel.segment === route.segments || (patrolMode.active && patrolMode.routeId === route.id)}
-                            style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: panel.segment === route.segments ? '#3a3a3a' : routeColor, border: 'none', color: 'white', cursor: (panel.segment === route.segments || (patrolMode.active && patrolMode.routeId === route.id)) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 600, opacity: (panel.segment === route.segments || (patrolMode.active && patrolMode.routeId === route.id)) ? 0.5 : 1 }}
+                            disabled={panel.segment === route.segments || (patrolMode.active && patrolMode.routeId === routeId)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: panel.segment === route.segments ? '#3a3a3a' : routeColor, border: 'none', color: 'white', cursor: (panel.segment === route.segments || (patrolMode.active && patrolMode.routeId === routeId)) ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 600, opacity: (panel.segment === route.segments || (patrolMode.active && patrolMode.routeId === routeId)) ? 0.5 : 1 }}
                         >
                             Next →
                         </button>
                     </div>
                 </div>
 
-                {patrolMode.active && patrolMode.routeId === route.id ? (
+                {patrolMode.active && patrolMode.routeId === routeId ? (
                     <div style={{ marginBottom: '16px', padding: '16px', backgroundColor: '#1a1a1a', borderRadius: '8px', border: '2px solid #B12518' }}>
                         <div style={{ fontSize: '11px', color: '#B12518', marginBottom: '12px', fontWeight: 700, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#B12518', animation: 'pulse 2s infinite' }}></span>
@@ -244,7 +260,7 @@ export default function RoutePanel({
                     !patrolMode.active && (
                         <div style={{ marginBottom: '16px' }}>
                             <button
-                                onClick={() => startVirtualPatrol(route.id, panel.segment)}
+                                onClick={() => startVirtualPatrol(routeId, panel.segment)}
                                 style={{ width: '100%', padding: '12px', borderRadius: '8px', backgroundColor: '#B12518', border: 'none', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                             >
                                 🎥 Start Virtual Patrol
@@ -253,7 +269,7 @@ export default function RoutePanel({
                     )
                 )}
 
-                {!(patrolMode.active && patrolMode.routeId === route.id) && (
+                {!(patrolMode.active && patrolMode.routeId === routeId) && (
                     <>
                         <div style={{ marginBottom: '16px' }}>
                             <div style={{ fontSize: '11px', color: '#888', marginBottom: '8px' }}>ANCHORS ({segAnchors.length})</div>

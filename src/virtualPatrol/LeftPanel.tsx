@@ -3,18 +3,17 @@ import type { Dispatch, SetStateAction } from 'react';
 import type {
         PatrolMode,
         Plan,
-        Project,
-        Route,
         RouteSearchResult,
         RouteStats
 } from './types';
+import { useMockDataCtx } from './MockDataProvider';
+import { useProjectRoutes } from './useProjectData';
 
 type SearchMode = 'routes' | 'anchors' | 'entities';
 
 interface LeftPanelProps {
         selectedProject: string;
         setSelectedProject: Dispatch<SetStateAction<string>>;
-        projects: Project[];
         colorMode: 'instance' | 'type';
         setColorMode: Dispatch<SetStateAction<'instance' | 'type'>>;
         plans: Plan[];
@@ -37,9 +36,7 @@ interface LeftPanelProps {
         togglePinRoute: (routeId: string) => void;
         sendSingleToView: (routeId: string) => void;
         sendPinnedToView: () => void;
-        routes: Route[];
         routeColors: Record<string, string>;
-        getRouteStats: (routeId: string) => RouteStats;
         patrolMode: PatrolMode;
         hiddenRoutes: string[];
         hideAllRoutes: () => void;
@@ -50,7 +47,6 @@ interface LeftPanelProps {
 export default function LeftPanel({
         selectedProject,
         setSelectedProject,
-        projects,
         colorMode,
         setColorMode,
         plans,
@@ -73,15 +69,36 @@ export default function LeftPanel({
         togglePinRoute,
         sendSingleToView,
         sendPinnedToView,
-        routes,
         routeColors,
-        getRouteStats,
         patrolMode,
         hiddenRoutes,
         hideAllRoutes,
         showAllRoutes,
         toggleRoute
 }: LeftPanelProps) {
+    const { projects, anchorToRoute, contentToAnchor, routeEntities } = useMockDataCtx();
+    const routes = useProjectRoutes(selectedProject);
+    const getRouteStats = (routeId: string): RouteStats => {
+        let anchorCount = 0;
+        let contentCount = 0;
+        const route = routes.find(r => r.id === routeId);
+        if (!route) {
+            return { anchorCount, contentCount, entityCount: 0 };
+        }
+
+        for (let i = 1; i <= route.segments; i++) {
+            const key = `${routeId}-${i}`;
+            const segAnchors = anchorToRoute[key] || [];
+            anchorCount += segAnchors.length;
+            segAnchors.forEach(aid => {
+                const segContent = contentToAnchor[aid] || [];
+                contentCount += segContent.length;
+            });
+        }
+
+        const assignedEntities = routeEntities[routeId] || [];
+        return { anchorCount, contentCount, entityCount: assignedEntities.length };
+    };
     const searchModes: SearchMode[] = ['routes', 'anchors', 'entities'];
     return (
         <div style={{ width: '320px', backgroundColor: '#2a2a2a', borderRight: '1px solid #444', height: '100vh', overflowY: 'auto', padding: '20px', flexShrink: 0 }}>

@@ -1,19 +1,21 @@
 import { X } from 'lucide-react';
-import type { ContentItem, PatrolMode, Route } from './types';
+import type { ContentItem, PatrolMode } from './types';
+import { useProjectRoutes } from './useProjectData';
 
 interface CCTVPanelsColumnProps {
     patrolMode: PatrolMode;
     fullscreenCCTV: ContentItem | null;
     setFullscreenCCTV: (value: ContentItem | null) => void;
-    routes: Route[];
+    selectedProject: string;
 }
 
 export default function CCTVPanelsColumn({
     patrolMode,
     fullscreenCCTV,
     setFullscreenCCTV,
-    routes
+    selectedProject
 }: CCTVPanelsColumnProps) {
+    const routes = useProjectRoutes(selectedProject);
     const currentRoute = routes.find(r => r.id === patrolMode.routeId);
     const showNextSegment =
         patrolMode.active &&

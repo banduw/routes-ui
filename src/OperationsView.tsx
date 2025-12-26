@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import { Home, Sliders } from 'lucide-react';
-import { useMockData } from './virtualPatrol/mockData';
 import {
     buildDisplayBundles,
     buildValidSelectedRoutes,
@@ -11,29 +10,36 @@ import {
     loadPlans,
     persistPlans
 } from './virtualPatrol/logic';
-import { ThreeDView, createThreeDViewController } from './virtualPatrol/ThreeDView';
-import type { SegmentDisplayBundle, ThreeDViewConfig, ThreeDViewController } from './virtualPatrol/ThreeDView';
+import { createThreeDViewController } from './virtualPatrol/ThreeDView';
+import type { SegmentDisplayBundle, ThreeDViewController } from './virtualPatrol/ThreeDView';
 import type {
     Anchor,
     ColorPickerState,
     ContentItem,
     ContentPanelState,
-    Entity,
     PatrolMode,
     Plan,
-    Route,
     RoutePanelLayout,
     RouteSearchResult,
-    RouteStats,
     SearchMatch
 } from './virtualPatrol/types';
 import LeftPanel from './virtualPatrol/LeftPanel';
 import RoutePanel from './virtualPatrol/RoutePanel';
 import ContentPanel from './virtualPatrol/ContentPanel';
 import CCTVPanelsColumn from './virtualPatrol/CCTVPanelsColumn';
-
+import { MockDataProvider, useMockDataCtx } from './virtualPatrol/MockDataProvider';
+import { ThreeDViewWithMockConfig } from './virtualPatrol/ThreeDViewWithMockConfig';
+import { useProjectRoutes } from './virtualPatrol/useProjectData';
 
 export default function OperationsView() {
+    return (
+        <MockDataProvider>
+            <OperationsViewContent />
+        </MockDataProvider>
+    );
+}
+
+function OperationsViewContent() {
     const threeDController = useRef<ThreeDViewController>(createThreeDViewController()).current;
 
     const [appMode, setAppMode] = useState<'presentation' | 'configuration'>('presentation');
@@ -65,7 +71,6 @@ export default function OperationsView() {
 
     const [fullscreenCCTV, setFullscreenCCTV] = useState<ContentItem | null>(null);
 
-
     const [colorPicker, setColorPicker] = useState<ColorPickerState | null>(null);
     const [colorMode, setColorMode] = useState<'instance' | 'type'>('instance');
     const [anchorColors, setAnchorColors] = useState<Record<string, string>>({});
@@ -78,28 +83,22 @@ export default function OperationsView() {
     const [contentPanels, setContentPanels] = useState<ContentPanelState[]>([]);
 
     const [searchQuery, setSearchQuery] = useState<string>('');
+
     const {
         ROUTE_COLORS,
-        AVAILABLE_COLORS,
-        projects,
-        allRoutes,
         anchors,
         content,
         entities,
         anchorToRoute,
         contentToAnchor,
-        routeEntities,
-        buildMockThreeDViewConfig
-    } = useMockData();
-
-    const routes: Route[] = allRoutes.filter(r => r.projectId === selectedProject);
+        routeEntities
+    } = useMockDataCtx();
+    const routes = useProjectRoutes(selectedProject);
 
     const validSelectedRoutes = useMemo(
         () => buildValidSelectedRoutes(selectedRoutes, routes),
         [selectedRoutes, routes]
     );
-
-
 
     useEffect(() => {
         setPlans(loadPlans<Plan>(selectedProject));
@@ -136,12 +135,6 @@ export default function OperationsView() {
         }
     }, [selectedProject, patrolMode.active]);
 
-    const threeDViewConfig = useMemo<ThreeDViewConfig>(
-        () => buildMockThreeDViewConfig({ routes, anchors }),
-        [buildMockThreeDViewConfig, routes, anchors]
-    );
-
-
     const prepareDisplayBundles = useMemo<SegmentDisplayBundle[]>(() => buildDisplayBundles({
         validSelectedRoutes,
         hiddenRoutes,
@@ -164,11 +157,9 @@ export default function OperationsView() {
         patrolMode.currentSegment
     ]);
 
-
     useEffect(() => {
         threeDController.setDisplayedSegments(prepareDisplayBundles);
     }, [prepareDisplayBundles, threeDController]);
-
 
     useEffect(() => {
         const unsubSegment = threeDController.onSegmentClick((event) => {
@@ -354,7 +345,7 @@ export default function OperationsView() {
                 const assignedEntityIds = routeEntities[route.id] || [];
                 const matchingEntities = assignedEntityIds
                     .map(eid => entities.find(e => e.id === eid))
-                    .filter((entity): entity is Entity => Boolean(entity && entity.name.toLowerCase().includes(q)));
+                    .filter((entity): entity is NonNullable<typeof entity> => Boolean(entity && entity.name.toLowerCase().includes(q)));
 
                 if (matchingEntities.length > 0) {
                     const entityMatches: SearchMatch[] = matchingEntities.map(e => ({ field: 'entity', value: e.name }));
@@ -567,7 +558,6 @@ export default function OperationsView() {
         return base;
     };
 
-
     const startVirtualPatrol = (routeId: string, startSegment: number): void => {
         const route = routes.find(r => r.id === routeId);
         if (!route) return;
@@ -615,7 +605,6 @@ export default function OperationsView() {
         setFullscreenCCTV(null);
     };
 
-
     const savePlan = (): void => {
         if (!planName.trim()) return;
 
@@ -660,7 +649,6 @@ export default function OperationsView() {
         setPlans(updatedPlans);
         persistPlans(selectedProject, updatedPlans);
     };
-
 
     const goToPreviousSegment = (): void => {
         if (patrolMode.currentSegment <= 1) return;
@@ -771,28 +759,6 @@ export default function OperationsView() {
         setColorPicker(null);
     };
 
-    const getRouteStats = (routeId: string): RouteStats => {
-        let anchorCount = 0;
-        let contentCount = 0;
-        const route = routes.find(r => r.id === routeId);
-        if (!route) {
-            return { anchorCount, contentCount, entityCount: 0 };
-        }
-
-        for (let i = 1; i <= route.segments; i++) {
-            const key = `${routeId}-${i}`;
-            const segAnchors = anchorToRoute[key] || [];
-            anchorCount += segAnchors.length;
-            segAnchors.forEach(aid => {
-                const segContent = contentToAnchor[aid] || [];
-                contentCount += segContent.length;
-            });
-        }
-
-        const assignedEntities = routeEntities[routeId] || [];
-        return { anchorCount, contentCount, entityCount: assignedEntities.length };
-    };
-
     return (
         <>
             <style>{`
@@ -829,7 +795,6 @@ export default function OperationsView() {
                     <LeftPanel
                         selectedProject={selectedProject}
                         setSelectedProject={setSelectedProject}
-                        projects={projects}
                         colorMode={colorMode}
                         setColorMode={setColorMode}
                         plans={plans}
@@ -852,9 +817,7 @@ export default function OperationsView() {
                         togglePinRoute={togglePinRoute}
                         sendSingleToView={sendSingleToView}
                         sendPinnedToView={sendPinnedToView}
-                        routes={routes}
                         routeColors={routeColors}
-                        getRouteStats={getRouteStats}
                         patrolMode={patrolMode}
                         hiddenRoutes={hiddenRoutes}
                         hideAllRoutes={hideAllRoutes}
@@ -880,13 +843,6 @@ export default function OperationsView() {
 
                             if (!panel || isHidden) return null;
 
-                            const linkKey = `${routeId}-${panel.segment}`;
-                            const segAnchors = (anchorToRoute[linkKey] || [])
-                                .map(aid => anchors.find(a => a.id === aid))
-                                .filter((anchor): anchor is Anchor => Boolean(anchor));
-                            const assignedEntities = (routeEntities[routeId] || [])
-                                .map(eid => entities.find(e => e.id === eid))
-                                .filter((entity): entity is Entity => Boolean(entity));
                             const panelStyle = getPanelStyle(panel, routeColor, routeId);
 
                             const changeSegment = (delta: number) => {
@@ -902,14 +858,13 @@ export default function OperationsView() {
                             return (
                                 <RoutePanel
                                     key={routeId}
-                                    route={route}
+                                    routeId={routeId}
                                     panel={panel}
                                     routeColor={routeColor}
                                     isActive={isActive}
                                     style={panelStyle}
                                     colorPicker={colorPicker}
                                     setColorPicker={setColorPicker}
-                                    AVAILABLE_COLORS={AVAILABLE_COLORS}
                                     setRouteColor={setRouteColor}
                                     patrolMode={patrolMode}
                                     onHeaderMouseDown={(e) => dragPanel(e, routeId)}
@@ -924,13 +879,9 @@ export default function OperationsView() {
                                     stopPatrol={stopPatrol}
                                     goToPreviousSegment={goToPreviousSegment}
                                     goToNextSegment={goToNextSegment}
-                                    segAnchors={segAnchors}
                                     anchorColors={anchorColors}
                                     setAnchorColor={setAnchorColor}
-                                    contentToAnchor={contentToAnchor}
-                                    content={content}
                                     openContent={openContent}
-                                    assignedEntities={assignedEntities}
                                 />
                             );
                         })}
@@ -953,12 +904,12 @@ export default function OperationsView() {
                                 patrolMode={patrolMode}
                                 fullscreenCCTV={fullscreenCCTV}
                                 setFullscreenCCTV={setFullscreenCCTV}
-                                routes={routes}
+                                selectedProject={selectedProject}
                             />
                         )}
 
                         {/* Mock 3D View - Multi-Viewport Testing */}
-                        <ThreeDView controller={threeDController} config={threeDViewConfig} />
+                        <ThreeDViewWithMockConfig controller={threeDController} selectedProject={selectedProject} />
                     </div>
                 </div>
 
