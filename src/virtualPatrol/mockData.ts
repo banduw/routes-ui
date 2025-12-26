@@ -7,6 +7,7 @@ import type {
     Route,
     VirtualPatrolData
 } from './types';
+import { buildMockThreeDViewConfig } from './mock/threeDMock';
 
 const ROUTE_COLORS: string[] = ['#B12518', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
@@ -94,7 +95,8 @@ export function useMockData(): VirtualPatrolData {
             entities,
             anchorToRoute,
             contentToAnchor,
-            routeEntities
+            routeEntities,
+            buildMockThreeDViewConfig
         }),
         []
     );

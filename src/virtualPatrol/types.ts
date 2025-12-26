@@ -1,3 +1,5 @@
+import type { ThreeDViewConfig } from './ThreeDView';
+
 export type RouteType = 'evacuation' | 'patrol';
 
 export interface Route {
@@ -110,4 +112,5 @@ export interface VirtualPatrolData {
     anchorToRoute: Record<string, string[]>;
     contentToAnchor: Record<string, string[]>;
     routeEntities: Record<string, string[]>;
+    buildMockThreeDViewConfig: (input: { routes: Route[]; anchors: Anchor[] }) => ThreeDViewConfig;
 }
