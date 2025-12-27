@@ -1,10 +1,14 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import ConfigurationsView from './configuration/ConfigurationsView'
 import OperationsView from './OperationsView'
 
 function App() {
     return (
-        <div className="min-h-screen bg-[#0b0f19] text-slate-100">
-            <OperationsView />
-        </div>
+        <Routes>
+            <Route path="/" element={<OperationsView />} />
+            <Route path="/config" element={<ConfigurationsView />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
     )
 }
 

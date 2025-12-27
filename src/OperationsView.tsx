@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import { Home, Sliders } from 'lucide-react';
 import {
@@ -42,7 +43,9 @@ export default function OperationsView() {
 function OperationsViewContent() {
     const threeDController = useRef<ThreeDViewController>(createThreeDViewController()).current;
 
-    const [appMode, setAppMode] = useState<'presentation' | 'configuration'>('presentation');
+    const navigate = useNavigate();
+    const location = useLocation();
+    const isOnConfigPage = location.pathname.startsWith('/config');
     const [selectedProject, setSelectedProject] = useState<string>('proj1');
     const leftPanelOpen = true;
 
@@ -782,10 +785,10 @@ function OperationsViewContent() {
 
                 {/* Left Icon Bar */}
                 <div style={{ width: '64px', backgroundColor: '#2a2a2a', borderRight: '1px solid #444', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: '8px', flexShrink: 0 }}>
-                    <button onClick={() => setAppMode('configuration')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: appMode === 'configuration' ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button onClick={() => navigate('/config')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: isOnConfigPage ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Sliders size={20} />
                     </button>
-                    <button onClick={() => setAppMode('presentation')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: appMode === 'presentation' ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button onClick={() => navigate('/')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: !isOnConfigPage ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Home size={20} />
                     </button>
                 </div>
