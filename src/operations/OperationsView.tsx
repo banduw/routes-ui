@@ -10,9 +10,9 @@ import {
     getRouteColorByIndex,
     loadPlans,
     persistPlans
-} from './virtualPatrol/logic';
-import { createThreeDViewController } from './virtualPatrol/ThreeDView';
-import type { SegmentDisplayBundle, ThreeDViewController } from './virtualPatrol/ThreeDView';
+} from './logic';
+import { createThreeDViewController } from './ThreeDView';
+import type { SegmentDisplayBundle, ThreeDViewController } from './ThreeDView';
 import type {
     Anchor,
     ColorPickerState,
@@ -23,14 +23,14 @@ import type {
     RoutePanelLayout,
     RouteSearchResult,
     SearchMatch
-} from './virtualPatrol/types';
-import LeftPanel from './virtualPatrol/LeftPanel';
-import RoutePanel from './virtualPatrol/RoutePanel';
-import ContentPanel from './virtualPatrol/ContentPanel';
-import CCTVPanelsColumn from './virtualPatrol/CCTVPanelsColumn';
-import { MockDataProvider, useMockDataCtx } from './virtualPatrol/MockDataProvider';
-import { ThreeDViewWithMockConfig } from './virtualPatrol/ThreeDViewWithMockConfig';
-import { useProjectRoutes } from './virtualPatrol/useProjectData';
+} from './types';
+import LeftPanel from './LeftPanel';
+import RoutePanel from './RoutePanel';
+import ContentPanel from './ContentPanel';
+import CCTVPanelsColumn from './CCTVPanelsColumn';
+import { MockDataProvider, useMockDataCtx } from './MockDataProvider';
+import { ThreeDViewWithMockConfig } from './ThreeDViewWithMockConfig';
+import { useProjectRoutes } from './useProjectData';
 
 export default function OperationsView() {
     return (

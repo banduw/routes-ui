@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ConfigurationsView from './configuration/ConfigurationsView'
-import OperationsView from './OperationsView'
+import OperationsView from './operations/OperationsView'
 
 function App() {
     return (
