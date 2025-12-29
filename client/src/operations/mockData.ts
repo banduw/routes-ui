@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import anchorImportsJson from '../../data/demo/anchor-import.json';
-import configJson from '../../data/demo/config.json';
-import routeImportsJson from '../../data/demo/route-import.json';
+import anchorImportsJson from '../data/demo/anchor-import.json';
+import configJson from '../data/demo/config.json';
+import routeImportsJson from '../data/demo/route-import.json';
 import type {
     Anchor,
     ContentItem,
