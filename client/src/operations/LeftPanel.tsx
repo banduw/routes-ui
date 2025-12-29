@@ -5,7 +5,7 @@ import type {
         Plan,
         RouteSearchResult
 } from './types';
-import { useMockDataCtx } from './MockDataProvider';
+import { useConfigData } from './ConfigDataProvider';
 import { useProjectRoutes } from './useProjectData';
 import RouteCard from './RouteCard';
 
@@ -76,7 +76,7 @@ export default function LeftPanel({
         showAllRoutes,
         toggleRoute
 }: LeftPanelProps) {
-    const { projects } = useMockDataCtx();
+    const { projects } = useConfigData();
     const routes = useProjectRoutes(selectedProject);
     const searchModes: SearchMode[] = ['routes', 'anchors', 'entities'];
     return (

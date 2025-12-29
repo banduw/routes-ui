@@ -17,10 +17,11 @@ apiRouter.get('/config-info', async (request, res) => {
     serviceUser.isServiceAdmin = false
 
     const client = (req.serviceAccount.dataCache as AccountData).interface
-    const data = await client.readSettings() as ConfigInfo
-    // const config = req.serviceAccount.serviceConfig as SummarizerConfig
-
-    data.user = serviceUser
+    const settings = await client.readSettings()
+    const data: ConfigInfo = {
+        ...settings,
+        user: serviceUser
+    }
     res.status(200).json(data)
 })
 
@@ -30,22 +31,43 @@ apiRouter.post('/read-settings', async (request, res) => {
     res.status(200).json(data)
 })
 
-apiRouter.post('/save-settings', async (request, res) => {
-    const client = await getInterfaceWithRole(request, 'canUpdate')
-    const payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body
-    await client.saveSettings(payload)
-    try {
-        const buildings = Array.isArray((payload as any)?.buildings)
-            ? (payload as any).buildings
-                .map((b: any) => b?.name)
-                .filter((n: any) => typeof n === 'string')
-            : []
-        await client.docListSync(buildings)
-    } catch (e) {
-        console.warn('docListSync failed', e)
+apiRouter.post('/read-account-config', async (request, res) => {
+    const req = request as AppRequest
+    if (req.session.user?.isAdmin !== true && req.session.user?.isServiceAdmin !== true) {
+        res.status(403).json({ error: 'Admin access required' })
+        return
     }
+    const config = await req.serviceAccount.readAccountConfig()
+    res.status(200).json(config)
+})
+
+apiRouter.post('/save-account-config', async (request, res) => {
+    const req = request as AppRequest
+    if (req.session.user?.isAdmin !== true && req.session.user?.isServiceAdmin !== true) {
+        res.status(403).json({ error: 'Admin access required' })
+        return
+    }
+    const payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body
+    await req.serviceAccount.saveAccountConfig(payload)
     res.status(200).json({})
 })
+
+// apiRouter.post('/save-settings', async (request, res) => {
+//     const client = await getInterfaceWithRole(request, 'canUpdate')
+//     const payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body
+//     await client.saveSettings(payload)
+//     try {
+//         const buildings = Array.isArray((payload as any)?.buildings)
+//             ? (payload as any).buildings
+//                 .map((b: any) => b?.name)
+//                 .filter((n: any) => typeof n === 'string')
+//             : []
+//         await client.docListSync(buildings)
+//     } catch (e) {
+//         console.warn('docListSync failed', e)
+//     }
+//     res.status(200).json({})
+// })
 
 apiRouter.get('/get-apikey', async (request, res) => {
     const req = request as AppRequest

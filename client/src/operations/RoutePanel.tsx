@@ -8,7 +8,7 @@ import type {
         PatrolMode,
         RoutePanelLayout
 } from './types';
-import { useMockDataCtx } from './MockDataProvider';
+import { useConfigData } from './ConfigDataProvider';
 
 interface RoutePanelProps {
         routeId: string;
@@ -72,7 +72,7 @@ export default function RoutePanel({
         anchorToRoute,
         routeEntities,
         entities
-    } = useMockDataCtx();
+    } = useConfigData();
 
     const route = useMemo(() => allRoutes.find(r => r.id === routeId), [allRoutes, routeId]);
     const segAnchors = useMemo<Anchor[]>(() => {

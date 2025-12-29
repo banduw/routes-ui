@@ -1,5 +1,5 @@
 import { Pin } from 'lucide-react';
-import { useMockDataCtx } from './MockDataProvider';
+import { useConfigData } from './ConfigDataProvider';
 import type { PatrolMode, Route, RouteStats } from './types';
 
 interface RouteCardProps {
@@ -21,7 +21,7 @@ export default function RouteCard({
         onTogglePin,
         onToggleRoute
 }: RouteCardProps) {
-    const { anchorToRoute, contentToAnchor, routeEntities } = useMockDataCtx();
+    const { anchorToRoute, contentToAnchor, routeEntities } = useConfigData();
 
     const getRouteStats = (routeId: string): RouteStats => {
         let anchorCount = 0;

@@ -2,6 +2,7 @@ import path from 'path'
 import { DataLogger } from '@twinlogic-singapore/common-if-utils'
 import { FileManager } from './file-manager.js'
 import fs from 'fs-extra'
+import { ConfigInfo } from './server-types.js'
 
 export namespace Summarizer {
     export type Config = {
@@ -40,14 +41,19 @@ export namespace Summarizer {
             return logger
         }
 
-        async readSettings() {
-            const filePath = path.join(this.dataFolder!, 'settings.json')
-            return await fs.readJson(filePath)
-        }
+        async readSettings(): Promise<Omit<ConfigInfo, 'user'>> {
+            const dataFilesPath = path.join(this.dataFolder!, 'dataFiles')
+            const [anchorImport, routeImport, config] = await Promise.all([
+                fs.readJson(path.join(dataFilesPath, 'anchor-import.json')),
+                fs.readJson(path.join(dataFilesPath, 'route-import.json')),
+                fs.readJson(path.join(dataFilesPath, 'config.json'))
+            ])
 
-        async saveSettings(data: unknown) {
-            const filePath = path.join(this.dataFolder!, 'settings.json')
-            await fs.writeJson(filePath, data, { spaces: 2 })
+            return {
+                anchorImport,
+                routeImport,
+                config
+            }
         }
 
         async ask(buildingName: string, query: string): Promise<any> {

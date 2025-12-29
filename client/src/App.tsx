@@ -6,7 +6,8 @@ function App() {
     return (
         <Routes>
             <Route path="/" element={<OperationsView />} />
-            <Route path="/config" element={<ConfigurationsView />} />
+            <Route path="/settings" element={<ConfigurationsView />} />
+            <Route path="/config" element={<Navigate to="/settings" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     )

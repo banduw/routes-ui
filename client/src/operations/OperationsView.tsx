@@ -22,30 +22,58 @@ import type {
     Plan,
     RoutePanelLayout,
     RouteSearchResult,
-    SearchMatch
+    SearchMatch,
+    VirtualPatrolData
 } from './types';
 import LeftPanel from './LeftPanel';
 import RoutePanel from './RoutePanel';
 import ContentPanel from './ContentPanel';
 import CCTVPanelsColumn from './CCTVPanelsColumn';
-import { MockDataProvider, useMockDataCtx } from './MockDataProvider';
-import { ThreeDViewWithMockConfig } from './ThreeDViewWithMockConfig';
+import { ConfigDataProvider, useConfigDataCtx } from './ConfigDataProvider';
+import { ThreeDViewWithConfig } from './ThreeDViewWithConfig';
 import { useProjectRoutes } from './useProjectData';
 
 export default function OperationsView() {
     return (
-        <MockDataProvider>
-            <OperationsViewContent />
-        </MockDataProvider>
+        <ConfigDataProvider>
+            <OperationsViewContentLoader />
+        </ConfigDataProvider>
     );
 }
 
-function OperationsViewContent() {
+function OperationsViewContentLoader() {
+    const { data, loading, error, refresh } = useConfigDataCtx();
+    if (loading && !data) {
+        return (
+            <div style={{ padding: '24px', color: 'white', backgroundColor: '#0f172a', minHeight: '100vh' }}>
+                Loading configuration...
+            </div>
+        );
+    }
+    if (!data) {
+        return (
+            <div style={{ padding: '24px', color: 'white', backgroundColor: '#0f172a', minHeight: '100vh' }}>
+                <div style={{ marginBottom: '12px' }}>Failed to load configuration.</div>
+                {error ? <div style={{ color: '#f87171', marginBottom: '12px' }}>{error}</div> : null}
+                <button
+                    style={{ padding: '8px 12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px' }}
+                    onClick={() => void refresh()}
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
+    return <OperationsViewContent data={data} />;
+}
+
+function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     const threeDController = useRef<ThreeDViewController>(createThreeDViewController()).current;
 
     const navigate = useNavigate();
     const location = useLocation();
-    const isOnConfigPage = location.pathname.startsWith('/config');
+    const isOnConfigPage = location.pathname.startsWith('/settings');
     const [selectedProject, setSelectedProject] = useState<string>('proj1');
     const leftPanelOpen = true;
 
@@ -95,7 +123,7 @@ function OperationsViewContent() {
         anchorToRoute,
         contentToAnchor,
         routeEntities
-    } = useMockDataCtx();
+    } = data;
     const routes = useProjectRoutes(selectedProject);
 
     const validSelectedRoutes = useMemo(
@@ -155,9 +183,7 @@ function OperationsViewContent() {
         routeColors,
         anchorColors,
         anchorToRoute,
-        patrolMode.active,
-        patrolMode.routeId,
-        patrolMode.currentSegment
+        patrolMode
     ]);
 
     useEffect(() => {
@@ -785,7 +811,7 @@ function OperationsViewContent() {
 
                 {/* Left Icon Bar */}
                 <div style={{ width: '64px', backgroundColor: '#2a2a2a', borderRight: '1px solid #444', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: '8px', flexShrink: 0 }}>
-                    <button onClick={() => navigate('/config')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: isOnConfigPage ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button onClick={() => navigate('/settings')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: isOnConfigPage ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Sliders size={20} />
                     </button>
                     <button onClick={() => navigate('/')} style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: !isOnConfigPage ? '#B12518' : '#3a3a3a', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -912,7 +938,7 @@ function OperationsViewContent() {
                         )}
 
                         {/* Mock 3D View - Multi-Viewport Testing */}
-                        <ThreeDViewWithMockConfig controller={threeDController} selectedProject={selectedProject} />
+                        <ThreeDViewWithConfig controller={threeDController} selectedProject={selectedProject} />
                     </div>
                 </div>
 

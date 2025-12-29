@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import type { Route } from './types';
-import { useMockDataCtx } from './MockDataProvider';
+import { useConfigData } from './ConfigDataProvider';
 
 export function useProjectRoutes(projectId: string): Route[] {
-    const { allRoutes } = useMockDataCtx();
+    const { allRoutes } = useConfigData();
     return useMemo(() => allRoutes.filter(route => route.projectId === projectId), [allRoutes, projectId]);
 }

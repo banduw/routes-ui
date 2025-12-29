@@ -25,11 +25,29 @@ export type SampleQuery = {
     groupNames: string[]
 }
 
+export type AnchorImport = {
+    id: string
+    model_id?: string
+}
+
+export type RouteImportSegment = {
+    id: string
+    label?: string
+    from: { x: number; y: number; z: number }
+    to: { x: number; y: number; z: number }
+    viewport_id?: string
+}
+
+export type RouteImport = {
+    id: string
+    segments: RouteImportSegment[]
+}
+
 export type ConfigInfo = {
     user: ServiceUser
-    buildings: BuildingConfig[]
-    groups: GroupConfig[]
-    sampleQueries: SampleQuery[]
+    anchorImport: AnchorImport[]
+    routeImport: RouteImport[]
+    config: any
 }
 
 export type GlobalConfigEx = GlobalConfig & {
