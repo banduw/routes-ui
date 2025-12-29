@@ -1,14 +1,21 @@
-FROM nginx:1.27-alpine
+# Use Alpine for smallest final image
+FROM node:24-alpine
 
-# Serve the already-built Vite output. Build artifacts must be present in ./client/dist.
-WORKDIR /usr/share/nginx/html
+WORKDIR /app
 
-# Copy the production bundle into the /routes path expected by the app's base URL.
-COPY client/dist/ /usr/share/nginx/html/routes/
+COPY node_modules/@twinlogic-singapore/common-if-utils \
+    node_modules/@twinlogic-singapore/common-if-utils
 
-# Lightweight nginx config that serves the SPA at /routes and falls back to index.html.
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy only built artifacts and server manifest
+COPY client/dist ./client/dist
+COPY server/dist ./server/dist
+COPY server/package.json ./server/
 
-EXPOSE 80
+# Install just production server deps
+WORKDIR /app/server
+COPY .npmrc .npmrc
+RUN npm install --omit=dev
+RUN rm .npmrc
 
-CMD ["nginx", "-g", "daemon off;"]
+# Expose and run
+CMD ["node", "dist/server.js"]
