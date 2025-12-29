@@ -16,6 +16,7 @@ dist-ssr
 *.local
 data
 for_Codex
+.npmrc
 
 # Editor directories and files
 .vscode/*
