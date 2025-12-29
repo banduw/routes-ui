@@ -1,13 +1,63 @@
 import { useMemo } from 'react';
+import anchorImportsJson from '../../data/demo/anchor-import.json';
+import configJson from '../../data/demo/config.json';
+import routeImportsJson from '../../data/demo/route-import.json';
 import type {
     Anchor,
     ContentItem,
     Entity,
     Project,
     Route,
+    RouteType,
     VirtualPatrolData
 } from './types';
 import { buildMockThreeDViewConfig } from './mock/threeDMock';
+
+interface RouteImportSegment {
+    id: string;
+    label: string;
+    from: { x: number; y: number; z: number };
+    to: { x: number; y: number; z: number };
+    viewport_id: string;
+}
+
+interface RouteImport {
+    id: string;
+    segments: RouteImportSegment[];
+}
+
+interface AnchorImport {
+    id: string;
+    model_id: string;
+}
+
+interface ConfigProject {
+    id: string;
+    name: string;
+    routes: string[];
+    anchorMaps: Array<{ route_id: string; segment_id: string; anchors: string[] }>;
+    contentAnchorMaps: Array<{ content_id: string; anchors: string[] }>;
+    entities: Array<{ id: string; name: string }>;
+}
+
+interface ConfigRouteExtension {
+    route_id: string;
+    name: string;
+    description: string;
+}
+
+interface ConfigAnchorExtension {
+    anchor_id: string;
+    name: string;
+    description: string;
+}
+
+interface ImportedConfig {
+    projects: ConfigProject[];
+    content: ContentItem[];
+    routeExtensions: ConfigRouteExtension[];
+    anchorExtensions: ConfigAnchorExtension[];
+}
 
 const ROUTE_COLORS: string[] = ['#B12518', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
@@ -21,71 +71,104 @@ const AVAILABLE_COLORS = [
     { value: '#06b6d4', name: 'Cyan' }
 ];
 
-const projects: Project[] = [
-    { id: 'proj1', name: 'Tiong Bahru Plaza' },
-    { id: 'proj2', name: 'Marina Square' }
-];
+const routeImports = routeImportsJson as RouteImport[];
+const anchorImports = anchorImportsJson as AnchorImport[];
+const config = configJson as ImportedConfig;
 
-const allRoutes: Route[] = [
-    { id: 'r1', projectId: 'proj1', name: 'North Wing Corridor', type: 'evacuation', segments: 5, description: 'Main evacuation route' },
-    { id: 'r2', projectId: 'proj1', name: 'South Wing Patrol', type: 'patrol', segments: 8, description: 'Security patrol route' },
-    { id: 'r3', projectId: 'proj1', name: 'Emergency Exit A', type: 'evacuation', segments: 3, description: 'Fire escape route' },
-    { id: 'r4', projectId: 'proj1', name: 'West Lobby Circuit', type: 'patrol', segments: 6, description: 'Lobby monitoring route' },
-    { id: 'm1', projectId: 'proj2', name: 'East Wing Security', type: 'patrol', segments: 4, description: 'East wing patrol path' },
-    { id: 'm2', projectId: 'proj2', name: 'Central Atrium Route', type: 'evacuation', segments: 6, description: 'Main evacuation corridor' },
-    { id: 'm3', projectId: 'proj2', name: 'Basement Patrol', type: 'patrol', segments: 7, description: 'Underground parking patrol' },
-    { id: 'm4', projectId: 'proj2', name: 'Rooftop Access', type: 'evacuation', segments: 3, description: 'Emergency rooftop exit' }
-];
+const routeExtensionsById = new Map(config.routeExtensions.map(ext => [ext.route_id, ext]));
+const anchorExtensionsById = new Map(config.anchorExtensions.map(ext => [ext.anchor_id, ext]));
 
-const anchors: Anchor[] = [
-    { id: 'a1', name: 'Fire Extinguisher #12', type: 'equipment' },
-    { id: 'a2', name: 'Exit Door E3', type: 'exit' },
-    { id: 'a3', name: 'Emergency Light #45', type: 'equipment' }
-];
+const projectByRouteId = new Map<string, string>();
+config.projects.forEach(project => {
+    project.routes.forEach(routeId => projectByRouteId.set(routeId, project.id));
+});
 
-const content: ContentItem[] = [
-    { id: 'c1', name: 'Fire Safety Manual', type: 'document', url: 'safety_manual.pdf' },
-    { id: 'c2', name: 'Evacuation Map', type: 'image', url: 'evac_map.png' },
-    { id: 'c3', name: 'CCTV North-01', type: 'cctv', url: 'rtsp://192.168.1.101/stream' },
-    { id: 'c4', name: 'Equipment Guide', type: 'document', url: 'equipment.pdf' },
-    { id: 'c5', name: 'CCTV North-02', type: 'cctv', url: 'rtsp://192.168.1.102/stream' },
-    { id: 'c6', name: 'CCTV North-03', type: 'cctv', url: 'rtsp://192.168.1.103/stream' },
-    { id: 'c7', name: 'CCTV South-01', type: 'cctv', url: 'rtsp://192.168.1.104/stream' },
-    { id: 'c8', name: 'CCTV South-02', type: 'cctv', url: 'rtsp://192.168.1.105/stream' },
-    { id: 'c9', name: 'CCTV South-03', type: 'cctv', url: 'rtsp://192.168.1.106/stream' },
-    { id: 'c10', name: 'CCTV Lobby-01', type: 'cctv', url: 'rtsp://192.168.1.107/stream' },
-    { id: 'c11', name: 'CCTV Lobby-02', type: 'cctv', url: 'rtsp://192.168.1.108/stream' },
-    { id: 'c12', name: 'Emergency Procedures', type: 'document', url: 'emergency.pdf' },
-    { id: 'c13', name: 'CCTV East-01', type: 'cctv', url: 'rtsp://192.168.1.109/stream' },
-    { id: 'c14', name: 'CCTV West-01', type: 'cctv', url: 'rtsp://192.168.1.110/stream' }
-];
-
-const entities: Entity[] = [
-    { id: 'e1', name: 'Security Team A' },
-    { id: 'e2', name: 'Fire Wardens' }
-];
-
-const anchorToRoute: Record<string, string[]> = { 
-    'r1-1': ['a1', 'a2'], 
-    'r1-2': ['a1', 'a2', 'a3'],  // All 3 anchors = 6+ CCTVs combined
-    'r1-3': ['a2'],
-    'r1-4': ['a1'],
-    'r1-5': ['a3'],
-    'r2-1': ['a1'], 
-    'r3-1': ['a2', 'a3'] 
+const inferRouteType = (name: string): RouteType => {
+    const lower = name.toLowerCase();
+    if (lower.includes('patrol') || lower.includes('security')) return 'patrol';
+    return 'evacuation';
 };
 
-const contentToAnchor: Record<string, string[]> = { 
-    'a1': ['c1', 'c3', 'c5', 'c6', 'c13'],     // 1 doc + 4 CCTVs
-    'a2': ['c2', 'c7', 'c8', 'c9', 'c14'],     // 1 image + 4 CCTVs  
-    'a3': ['c4', 'c10', 'c11']                 // 1 doc + 2 CCTVs
+const inferAnchorType = (name: string): Anchor['type'] => {
+    if (name.toLowerCase().includes('exit')) return 'exit';
+    return 'equipment';
 };
 
-const routeEntities: Record<string, string[]> = { 'r1': ['e2'], 'r2': ['e1'], 'r3': ['e2'] };
+const buildProjects = (): Project[] => config.projects.map(project => ({ id: project.id, name: project.name }));
+
+const buildRoutes = (): Route[] =>
+    routeImports.map(routeImport => {
+        const extension = routeExtensionsById.get(routeImport.id);
+        const name = extension?.name ?? routeImport.id;
+        return {
+            id: routeImport.id,
+            projectId: projectByRouteId.get(routeImport.id) ?? 'unknown',
+            name,
+            type: inferRouteType(name),
+            segments: routeImport.segments?.length ?? 0,
+            description: extension?.description ?? ''
+        };
+    });
+
+const buildAnchors = (): Anchor[] =>
+    anchorImports.map(anchorImport => {
+        const extension = anchorExtensionsById.get(anchorImport.id);
+        const name = extension?.name ?? anchorImport.id;
+        return {
+            id: anchorImport.id,
+            name,
+            type: inferAnchorType(name)
+        };
+    });
+
+const buildContent = (): ContentItem[] => config.content;
+
+const buildEntities = (): Entity[] => {
+    const map = new Map<string, Entity>();
+    config.projects.forEach(project => {
+        project.entities.forEach(entity => {
+            if (!map.has(entity.id)) map.set(entity.id, { id: entity.id, name: entity.name });
+        });
+    });
+    return Array.from(map.values());
+};
+
+const buildAnchorToRoute = (): Record<string, string[]> => {
+    const anchorToRoute: Record<string, string[]> = {};
+    config.projects.forEach(project => {
+        project.anchorMaps.forEach(map => {
+            anchorToRoute[map.segment_id] = map.anchors;
+        });
+    });
+    return anchorToRoute;
+};
+
+const buildContentToAnchor = (): Record<string, string[]> => {
+    const contentToAnchor: Record<string, string[]> = {};
+    config.projects.forEach(project => {
+        project.contentAnchorMaps.forEach(map => {
+            map.anchors.forEach(anchorId => {
+                if (!contentToAnchor[anchorId]) contentToAnchor[anchorId] = [];
+                if (!contentToAnchor[anchorId].includes(map.content_id)) {
+                    contentToAnchor[anchorId].push(map.content_id);
+                }
+            });
+        });
+    });
+    return contentToAnchor;
+};
 
 export function useMockData(): VirtualPatrolData {
-    return useMemo(
-        () => ({
+    return useMemo(() => {
+        const projects = buildProjects();
+        const allRoutes = buildRoutes();
+        const anchors = buildAnchors();
+        const content = buildContent();
+        const entities = buildEntities();
+        const anchorToRoute = buildAnchorToRoute();
+        const contentToAnchor = buildContentToAnchor();
+
+        return {
             ROUTE_COLORS,
             AVAILABLE_COLORS,
             projects,
@@ -95,9 +178,8 @@ export function useMockData(): VirtualPatrolData {
             entities,
             anchorToRoute,
             contentToAnchor,
-            routeEntities,
+            routeEntities: {},
             buildMockThreeDViewConfig
-        }),
-        []
-    );
+        };
+    }, []);
 }

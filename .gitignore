@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+data
+for_Codex
 
 # Editor directories and files
 .vscode/*
