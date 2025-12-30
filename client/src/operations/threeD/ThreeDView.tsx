@@ -27,13 +27,10 @@ export type ThreeDViewProps = {
     anchors: AnchorRefWithColor[]
     bimConfig?: BimConfig | null;
     onDotClick: (anchor: string) => void
-    onRequestSelectionOptions: (rowIds: number[]) => void;
-    onClearSelection: () => void;
 };
 
-const ThreeDView: React.FC<ThreeDViewProps> = ({
+export const ThreeDView: React.FC<ThreeDViewProps> = ({
     anchors,
-    bimConfig,
     onDotClick
 }) => {
     const { configInfo } = useConfigInfo();
@@ -50,7 +47,10 @@ const ThreeDView: React.FC<ThreeDViewProps> = ({
     const ceilingDiscovery = useRef(new CeilingDiscovery())
     const [clickedAnchor, setClickedAnchor] = useState<string>()
 
-    const buildingOptions = bimConfig?.buildings ?? [];
+    const buildingOptions = useMemo(() => {
+        return configInfo?.bimConfig?.buildings ?? []
+    }, [configInfo])
+
     const [selectedBuildingName, setSelectedBuildingName] = useState<string>(buildingOptions[0]?.name ?? '');
 
     useEffect(() => {
@@ -105,11 +105,12 @@ const ThreeDView: React.FC<ThreeDViewProps> = ({
     }, [levelOptions, selectedLevel]);
 
     const forgeModel = useMemo<BimModel | undefined>(() => {
-        if (bimConfig && selectedBuilding) {
-            return bimConfig.bimModels.find(m => m.name === selectedBuilding.modelName);
+        if (configInfo?.bimConfig && selectedBuilding) {
+            return configInfo.bimConfig.bimModels.find(m => m.name === selectedBuilding.modelName);
         }
         return undefined;
-    }, [bimConfig, selectedBuilding]);
+    }, [configInfo, selectedBuilding]);
+
     const modelName = forgeModel?.name ?? null;
 
     useEffect(() => {
@@ -426,6 +427,7 @@ const ThreeDView: React.FC<ThreeDViewProps> = ({
 
     const handleGoHome = useCallback(() => {
         if (!viewerReady) return;
+        setSelectedLevel(ALL_LEVELS_LABEL);
         applySectorState(buildingSector ?? null);
     }, [applySectorState, buildingSector, viewerReady]);
 
@@ -611,5 +613,3 @@ const ThreeDView: React.FC<ThreeDViewProps> = ({
         </div>
     );
 };
-
-export default ThreeDView;

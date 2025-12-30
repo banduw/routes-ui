@@ -65,7 +65,7 @@ export namespace Summarizer {
 
             let bimConfig
             try {
-                bimConfig = await fs.readJson(path.join(dataFilesPath, 'bim-config.json'))
+                bimConfig = await fs.readJson(path.join(this.dataFolder!, 'bim-models', 'bim-config.json'))
             } catch { }
 
             const info: Omit<ConfigInfo, 'user'> = {

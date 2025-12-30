@@ -11,6 +11,13 @@ async function getInterfaceWithRole(request: Express.Request, role?: string) {
     else throw new Error(`User does not have '${role}' role.`)
 }
 
+apiRouter.get('/forge-access-token', async (request, res) => {
+    const req = request as AppRequest
+    if (req.session.user?.serviceRoles.includes('canView') != true) throw new Error('User does not have canView role.')
+    const data = await req.serviceAccount.serviceAuth!.execGenericGET('forge-access-token')
+    res.status(200).json(data)
+})
+
 apiRouter.get('/config-info', async (request, res) => {
     const req = request as AppRequest
     const serviceUser = req.serviceAccount.makeServiceUser(req.session.user)

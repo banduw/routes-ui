@@ -30,8 +30,8 @@ import RoutePanel from './RoutePanel';
 import ContentPanel from './ContentPanel';
 import CCTVPanelsColumn from './CCTVPanelsColumn';
 import { ConfigDataProvider, useConfigDataCtx } from './ConfigDataProvider';
-import { ThreeDViewWithConfig } from './ThreeDViewWithConfig';
 import { useProjectRoutes } from './useProjectData';
+import { ThreeDView } from './threeD/ThreeDView';
 
 export default function OperationsView() {
     return (
@@ -949,8 +949,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                             />
                         )}
 
-                        {/* Mock 3D View - Multi-Viewport Testing */}
-                        <ThreeDViewWithConfig controller={threeDController} selectedProject={selectedProject} />
+                        <ThreeDView anchors={[]} onDotClick={() => { }} />
                     </div>
                 </div>
 
