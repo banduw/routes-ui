@@ -1,4 +1,4 @@
-import type { AnchorImport, ConfigInfo, RouteImport } from '../config/types'
+import type { AnchorImport, ConfigInfo } from '../config/types'
 import type {
     Anchor,
     ContentItem,
@@ -8,7 +8,6 @@ import type {
     RouteType,
     VirtualPatrolData
 } from './types'
-import { buildMockThreeDViewConfig } from './mock/threeDMock'
 
 const ROUTE_COLORS: string[] = ['#B12518', '#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
@@ -114,11 +113,6 @@ export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
         return result;
     })();
 
-    const routeSegmentsById: Record<string, RouteImport['segments']> = {};
-    routeImport.forEach(route => {
-        routeSegmentsById[route.id] = route.segments ?? [];
-    });
-
     return {
         ROUTE_COLORS,
         AVAILABLE_COLORS,
@@ -129,8 +123,6 @@ export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
         entities,
         anchorToRoute,
         contentToAnchor,
-        routeEntities: {},
-        routeSegmentsById,
-        buildMockThreeDViewConfig
+        routeEntities: {}
     };
 }

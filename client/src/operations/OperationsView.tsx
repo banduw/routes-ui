@@ -11,8 +11,6 @@ import {
     loadPlans,
     persistPlans
 } from './logic';
-import { createThreeDViewController } from './ThreeDView-mock';
-import type { SegmentDisplayBundle, ThreeDViewController } from './ThreeDView-mock';
 import type {
     Anchor,
     ColorPickerState,
@@ -23,6 +21,7 @@ import type {
     RoutePanelLayout,
     RouteSearchResult,
     SearchMatch,
+    SegmentDisplayBundle,
     VirtualPatrolData
 } from './types';
 import LeftPanel from './LeftPanel';
@@ -69,8 +68,6 @@ function OperationsViewContentLoader() {
 }
 
 function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
-    const threeDController = useRef<ThreeDViewController>(createThreeDViewController()).current;
-
     const navigate = useNavigate();
     const location = useLocation();
     const isOnConfigPage = location.pathname.startsWith('/settings');
@@ -168,7 +165,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         }
     }, [selectedProject, patrolMode.active]);
 
-    const prepareDisplayBundles = useMemo<SegmentDisplayBundle[]>(() => buildDisplayBundles({
+    const displayBundles = useMemo<SegmentDisplayBundle[]>(() => buildDisplayBundles({
         validSelectedRoutes,
         hiddenRoutes,
         routes,
@@ -188,24 +185,23 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         patrolMode
     ]);
 
-    useEffect(() => {
-        threeDController.setDisplayedSegments(prepareDisplayBundles);
-    }, [prepareDisplayBundles, threeDController]);
+    const anchorsForThreeD = useMemo(() => {
+        const anchorMap = new Map<string, string>();
 
-    useEffect(() => {
-        const unsubSegment = threeDController.onSegmentClick((event) => {
-            console.log('[3D View] Segment clicked:', event.segment_name);
+        displayBundles.forEach(bundle => {
+            bundle.anchors.forEach(anchor => {
+                if (!anchorMap.has(anchor.anchor_name)) {
+                    anchorMap.set(anchor.anchor_name, anchor.color);
+                }
+            });
         });
 
-        const unsubAnchor = threeDController.onAnchorClick((event) => {
-            console.log('[3D View] Anchor clicked:', event.anchor_name);
-        });
+        return Array.from(anchorMap.entries()).map(([anchor_name, color]) => ({ anchor_name, color }));
+    }, [displayBundles]);
 
-        return () => {
-            unsubSegment();
-            unsubAnchor();
-        };
-    }, [threeDController]);
+    const handleAnchorClick = (anchorId: string): void => {
+        console.log('[3D View] Anchor clicked:', anchorId);
+    };
 
     const toggleRoute = (routeId: string): void => {
         if (patrolMode.active) {
@@ -949,7 +945,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                             />
                         )}
 
-                        <ThreeDView anchors={[]} onAnchorClick={() => { }} />
+                        <ThreeDView anchors={anchorsForThreeD} onAnchorClick={handleAnchorClick} />
                     </div>
                 </div>
 

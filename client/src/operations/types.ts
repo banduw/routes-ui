@@ -1,5 +1,5 @@
-import type { ThreeDViewConfig } from './ThreeDView-mock';
-import type { AnchorType as ConfigAnchorType, RouteImportSegment, RouteType as ConfigRouteType } from '../config/types';
+import type { AnchorType as ConfigAnchorType, RouteType as ConfigRouteType } from '../config/types';
+import type { AnchorRefWithColor } from './threeD/types';
 
 export type RouteType = ConfigRouteType;
 export type AnchorType = ConfigAnchorType;
@@ -101,6 +101,12 @@ export interface RouteSearchResult {
     matches: SearchMatch[];
 }
 
+export interface SegmentDisplayBundle {
+    segment_name: string;
+    color: string;
+    anchors: AnchorRefWithColor[];
+}
+
 export interface VirtualPatrolData {
     ROUTE_COLORS: string[];
     AVAILABLE_COLORS: Array<{ value: string; name: string }>;
@@ -112,6 +118,4 @@ export interface VirtualPatrolData {
     anchorToRoute: Record<string, string[]>;
     contentToAnchor: Record<string, string[]>;
     routeEntities: Record<string, string[]>;
-    routeSegmentsById: Record<string, RouteImportSegment[]>;
-    buildMockThreeDViewConfig: (input: { routes: Route[]; anchors: Anchor[]; routeSegmentsById?: Record<string, RouteImportSegment[]> }) => ThreeDViewConfig;
 }

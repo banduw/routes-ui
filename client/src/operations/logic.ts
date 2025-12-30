@@ -2,9 +2,9 @@ import type {
         PatrolMode,
         Route,
         RoutePanelLayout,
-        RoutePanelPosition
+        RoutePanelPosition,
+        SegmentDisplayBundle
 } from './types';
-import type { SegmentDisplayBundle } from './ThreeDView-mock';
 
 export function getPlanStorageKey(projectId: string): string {
         return `plans_${projectId}`;
