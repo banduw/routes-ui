@@ -22,17 +22,6 @@ const AVAILABLE_COLORS = [
     { value: '#06b6d4', name: 'Cyan' }
 ];
 
-const inferRouteType = (name: string): RouteType => {
-    const lower = name.toLowerCase();
-    if (lower.includes('patrol') || lower.includes('security')) return 'patrol';
-    return 'evacuation';
-};
-
-const inferAnchorType = (name: string): Anchor['type'] => {
-    if (name.toLowerCase().includes('exit')) return 'exit';
-    return 'equipment';
-};
-
 export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
     const { config, routeImport, anchorImport } = configInfo
 
@@ -49,11 +38,15 @@ export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
     const allRoutes: Route[] = routeImport.map(route => {
         const extension = routeExtensionsById.get(route.id);
         const name = extension?.name ?? route.id;
+        const type: RouteType = (() => {
+            const value = typeof extension?.type === 'string' ? extension.type.toLowerCase() : '';
+            return value === 'patrol' ? 'patrol' : 'evacuation';
+        })();
         return {
             id: route.id,
             projectId: projectByRouteId.get(route.id) ?? 'unknown',
             name,
-            type: inferRouteType(name),
+            type,
             segments: Array.isArray(route.segments) ? route.segments.length : 0,
             description: extension?.description ?? ''
         };
@@ -62,10 +55,14 @@ export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
     const anchors: Anchor[] = anchorImport.map((anchor: AnchorImport) => {
         const extension = anchorExtensionsById.get(anchor.id);
         const name = extension?.name ?? anchor.id;
+        const type: Anchor['type'] = (() => {
+            const value = typeof extension?.type === 'string' ? extension.type.toLowerCase() : '';
+            return value === 'exit' ? 'exit' : 'equipment';
+        })();
         return {
             id: anchor.id,
             name,
-            type: inferAnchorType(name)
+            type
         };
     });
 

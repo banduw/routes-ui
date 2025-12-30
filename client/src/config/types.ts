@@ -8,6 +8,10 @@ export type ServiceUser = {
     serviceRoles?: string[]
 }
 
+export type RouteType = 'evacuation' | 'patrol'
+
+export type AnchorType = 'equipment' | 'exit'
+
 export type AnchorImport = {
     id: string
     model_id?: string
@@ -38,12 +42,14 @@ export type ConfigProject = {
 export type ConfigRouteExtension = {
     route_id: string
     name: string
+    type: RouteType
     description?: string
 }
 
 export type ConfigAnchorExtension = {
     anchor_id: string
     name: string
+    type: AnchorType
     description?: string
 }
 

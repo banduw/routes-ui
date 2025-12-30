@@ -1,7 +1,8 @@
 import type { ThreeDViewConfig } from './ThreeDView';
-import type { RouteImportSegment } from '../config/types';
+import type { AnchorType as ConfigAnchorType, RouteImportSegment, RouteType as ConfigRouteType } from '../config/types';
 
-export type RouteType = 'evacuation' | 'patrol';
+export type RouteType = ConfigRouteType;
+export type AnchorType = ConfigAnchorType;
 
 export interface Route {
     id: string;
@@ -11,8 +12,6 @@ export interface Route {
     segments: number;
     description: string;
 }
-
-export type AnchorType = 'equipment' | 'exit';
 
 export interface Anchor {
     id: string;
