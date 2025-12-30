@@ -1,4 +1,4 @@
-import type { ThreeDViewAnchor, ThreeDViewConfig, ThreeDViewSegment, ThreeDViewViewport } from '../ThreeDView';
+import type { ThreeDViewAnchor, ThreeDViewConfig, ThreeDViewSegment, ThreeDViewViewport } from '../ThreeDView-mock';
 import type { Anchor, Route } from '../types';
 import type { RouteImportSegment } from '../../config/types';
 

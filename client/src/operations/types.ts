@@ -1,4 +1,4 @@
-import type { ThreeDViewConfig } from './ThreeDView';
+import type { ThreeDViewConfig } from './ThreeDView-mock';
 import type { AnchorType as ConfigAnchorType, RouteImportSegment, RouteType as ConfigRouteType } from '../config/types';
 
 export type RouteType = ConfigRouteType;

@@ -11,8 +11,8 @@ import {
     loadPlans,
     persistPlans
 } from './logic';
-import { createThreeDViewController } from './ThreeDView';
-import type { SegmentDisplayBundle, ThreeDViewController } from './ThreeDView';
+import { createThreeDViewController } from './ThreeDView-mock';
+import type { SegmentDisplayBundle, ThreeDViewController } from './ThreeDView-mock';
 import type {
     Anchor,
     ColorPickerState,
@@ -949,7 +949,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                             />
                         )}
 
-                        <ThreeDView anchors={[]} onDotClick={() => { }} />
+                        <ThreeDView anchors={[]} onAnchorClick={() => { }} />
                     </div>
                 </div>
 

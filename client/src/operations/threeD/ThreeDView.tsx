@@ -26,12 +26,12 @@ type AnchorMeta = {
 export type ThreeDViewProps = {
     anchors: AnchorRefWithColor[]
     bimConfig?: BimConfig | null;
-    onDotClick: (anchor: string) => void
+    onAnchorClick: (anchor: string) => void
 };
 
 export const ThreeDView: React.FC<ThreeDViewProps> = ({
     anchors,
-    onDotClick
+    onAnchorClick: onDotClick
 }) => {
     const { configInfo } = useConfigInfo();
 

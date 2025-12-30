@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { ThreeDView } from './ThreeDView';
-import type { ThreeDViewController, ThreeDViewConfig } from './ThreeDView';
+import { ThreeDView } from './ThreeDView-mock';
+import type { ThreeDViewController, ThreeDViewConfig } from './ThreeDView-mock';
 import { useConfigData } from './ConfigDataProvider';
 import { useProjectRoutes } from './useProjectData';
 
