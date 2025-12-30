@@ -23,7 +23,7 @@ const AVAILABLE_COLORS = [
 ];
 
 export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
-    const { config, routeImport, anchorImport } = configInfo
+    const { routeConfig: config, routeImport, anchorImport } = configInfo
 
     const routeExtensionsById = new Map(config.routeExtensions.map(ext => [ext.route_id, ext]));
     const anchorExtensionsById = new Map(config.anchorExtensions.map(ext => [ext.anchor_id, ext]));

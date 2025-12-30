@@ -1,3 +1,5 @@
+import type { BimConfig, BimDot, BimSector, BimViewport } from "../operations/threeD/types"
+
 export type ServiceUser = {
     email?: string
     name?: string
@@ -62,7 +64,11 @@ export type ImportedConfig = {
 
 export type ConfigInfo = {
     user: ServiceUser
-    anchorImport: AnchorImport[]
+    anchorImport: AnchorImport[] // temporary, can be extracted from bimDots
     routeImport: RouteImport[]
-    config: ImportedConfig
+    routeConfig: ImportedConfig
+    bimConfig?: BimConfig
+    bimSectors?: Record<string, BimSector[]>
+    bimViewports?: Record<string, BimViewport[]>
+    bimDots?: Record<string, BimDot[]>
 }

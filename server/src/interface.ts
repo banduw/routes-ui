@@ -42,19 +42,46 @@ export namespace Summarizer {
             return logger
         }
 
+        async getExtendedConfig<T>(modelNames: string[], fileName: string): Promise<Record<string, T>> {
+            const output: Record<string, T> = {}
+            for (const modelName of modelNames) {
+                const filePath = path.join(this.dataFolder!, 'bim-models', modelName, fileName)
+                try {
+                    const data = await fs.readJson(filePath)
+                    output[modelName] = data
+                } catch (_) { }
+            }
+            return output
+        }
+
+
         async readSettings(): Promise<Omit<ConfigInfo, 'user'>> {
             const dataFilesPath = path.join(this.dataFolder!, 'dataFiles')
-            const [anchorImport, routeImport, config] = await Promise.all([
+            const [anchorImport, routeImport, routeConfig] = await Promise.all([
                 fs.readJson(path.join(dataFilesPath, 'anchor-import.json')),
                 fs.readJson(path.join(dataFilesPath, 'route-import.json')),
-                fs.readJson(path.join(dataFilesPath, 'config.json'))
+                fs.readJson(path.join(dataFilesPath, 'route-config.json'))
             ])
 
-            return {
+            let bimConfig
+            try {
+                bimConfig = await fs.readJson(path.join(dataFilesPath, 'bim-config.json'))
+            } catch { }
+
+            const info: Omit<ConfigInfo, 'user'> = {
                 anchorImport,
                 routeImport,
-                config
+                routeConfig,
+                bimConfig
             }
+
+            if (bimConfig) {
+                const modelNames = (bimConfig as { bimModels: { name: string }[] }).bimModels.map(a => a.name)
+                info.bimSectors = await this.getExtendedConfig<any[]>(modelNames, 'sector-data.json')
+                info.bimViewports = await this.getExtendedConfig<any[]>(modelNames, 'viewports.json')
+                info.bimDots = await this.getExtendedConfig<any[]>(modelNames, 'dot-layer.json')
+            }
+            return info
         }
 
         async ask(buildingName: string, query: string): Promise<any> {
@@ -240,14 +267,14 @@ export namespace Summarizer {
             const resolvedPath = path.resolve(contentFolder, safeName)
             if (!resolvedPath.startsWith(contentFolder)) {
                 const err = new Error('Invalid file path')
-                ;(err as any).code = 'EINVALIDPATH'
+                    ; (err as any).code = 'EINVALIDPATH'
                 throw err
             }
 
             const exists = await fs.pathExists(resolvedPath)
             if (!exists) {
                 const err = new Error('File not found')
-                ;(err as any).code = 'ENOENT'
+                    ; (err as any).code = 'ENOENT'
                 throw err
             }
 

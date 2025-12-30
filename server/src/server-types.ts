@@ -45,9 +45,13 @@ export type RouteImport = {
 
 export type ConfigInfo = {
     user: ServiceUser
-    anchorImport: AnchorImport[]
+    anchorImport: AnchorImport[] // temporary, can be extracted from bimDots
     routeImport: RouteImport[]
-    config: any
+    routeConfig: any
+    bimConfig?: any
+    bimSectors?: Record<string, any[]>
+    bimViewports?: Record<string, any[]>
+    bimDots?: Record<string, any[]>
 }
 
 export type GlobalConfigEx = GlobalConfig & {
