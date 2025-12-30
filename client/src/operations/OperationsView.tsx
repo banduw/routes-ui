@@ -115,6 +115,8 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
 
     const [searchQuery, setSearchQuery] = useState<string>('');
 
+    const baseUrl = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+
     const {
         ROUTE_COLORS,
         anchors,
@@ -451,6 +453,16 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     };
 
     const openContent = (contentItem: ContentItem): void => {
+        if (contentItem.type === 'link') {
+            if (contentItem.url) {
+                const target = contentItem.url.startsWith('http')
+                    ? contentItem.url
+                    : `${baseUrl}/${contentItem.url.replace(/^\//, '')}`;
+                window.open(target, '_blank', 'noopener,noreferrer');
+            }
+            return;
+        }
+
         const existing = contentPanels.find(p => p.content.id === contentItem.id);
         if (existing) {
             setActivePanel(`content-${existing.id}`);

@@ -17,34 +17,56 @@ export default function ContentPanel({
     onDrag,
     onClose
 }: ContentPanelProps) {
+    const baseUrl = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+    const contentUrl = panel.content.type !== 'link' && panel.content.url
+        ? `${baseUrl}/api/content/${encodeURIComponent(panel.content.url)}`
+        : null;
+
+    const renderMissing = (label: string) => (
+        <div style={{ textAlign: 'center', color: '#888' }}>
+            <p style={{ fontSize: '14px', marginBottom: '6px' }}>{label}</p>
+            <p style={{ fontSize: '12px' }}>Content unavailable</p>
+        </div>
+    );
+
     const renderContent = () => {
         if (panel.content.type === 'document') {
+            if (!contentUrl) return renderMissing('Document');
             return (
-                <div style={{ textAlign: 'center' }}>
-                    <FileText size={64} style={{ color: '#666', margin: '0 auto 16px' }} />
-                    <p style={{ fontSize: '16px', marginBottom: '8px' }}>{panel.content.name}</p>
-                    <p style={{ fontSize: '12px', color: '#888' }}>{panel.content.url ?? 'Document'}</p>
-                </div>
+                <iframe
+                    src={contentUrl}
+                    title={panel.content.name}
+                    style={{ width: '100%', height: '100%', border: 'none', borderRadius: '8px', backgroundColor: '#0f172a' }}
+                />
             );
         }
 
         if (panel.content.type === 'image') {
+            if (!contentUrl) return renderMissing('Image');
             return (
-                <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '64px', marginBottom: '16px' }}>🖼️</div>
-                    <p style={{ fontSize: '16px', marginBottom: '8px' }}>{panel.content.name}</p>
-                    <p style={{ fontSize: '12px', color: '#888' }}>{panel.content.url ?? 'Image File'}</p>
-                </div>
+                <img
+                    src={contentUrl}
+                    alt={panel.content.name}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }}
+                />
             );
         }
 
-        return (
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '64px', marginBottom: '16px' }}>📹</div>
-                <p style={{ fontSize: '16px', marginBottom: '8px' }}>{panel.content.name}</p>
-                <p style={{ fontSize: '11px', color: '#10b981', fontFamily: 'monospace' }}>{panel.content.url ?? 'Live Stream'}</p>
-            </div>
-        );
+        if (panel.content.type === 'cctv') {
+            if (!contentUrl) return renderMissing('CCTV stream');
+            return (
+                <video
+                    src={contentUrl}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    style={{ width: '100%', height: '100%', backgroundColor: '#0f172a', borderRadius: '8px', objectFit: 'contain' }}
+                />
+            );
+        }
+
+        return renderMissing('Content');
     };
 
     return (

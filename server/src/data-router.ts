@@ -111,6 +111,36 @@ apiRouter.post('/data-files/:file/create', async (request, res) => {
     res.status(200).json({})
 })
 
+apiRouter.get('/content/:file', async (request, res) => {
+    const client = await getInterfaceWithRole(request, 'canView')
+    const fileName = typeof request.params.file === 'string' ? request.params.file.trim() : ''
+    if (!fileName) {
+        res.status(400).json({ error: 'file parameter is required' })
+        return
+    }
+
+    try {
+        const content = await client.readContentFile(fileName)
+        res.setHeader('Content-Type', content.contentType)
+        res.setHeader('Content-Disposition', `inline; filename="${content.fileName}"`)
+        res.setHeader('Cache-Control', 'private, max-age=0')
+        if (content.size) res.setHeader('Content-Length', content.size.toString())
+
+        content.stream.on('error', (err) => {
+            console.error('Failed to stream content file', err)
+            if (!res.headersSent) res.status(500).json({ error: 'Failed to read content file' })
+            else res.destroy(err)
+        })
+
+        content.stream.pipe(res)
+    } catch (e: any) {
+        console.error('Failed to serve content file', e)
+        if (e?.code === 'ENOENT') res.status(404).json({ error: 'Content file not found' })
+        else if (e?.code === 'EINVALIDPATH') res.status(400).json({ error: 'Invalid content file path' })
+        else res.status(500).json({ error: e?.message ?? 'Failed to serve content file' })
+    }
+})
+
 apiRouter.post('/data/:file', async (request, res) => {
     const client = await getInterfaceWithRole(request, 'canUpdate')
     await client.dataFiles.updateJson(request.params.file, request.body)

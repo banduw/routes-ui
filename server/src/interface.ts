@@ -3,6 +3,7 @@ import { DataLogger } from '@twinlogic-singapore/common-if-utils'
 import { FileManager } from './file-manager.js'
 import fs from 'fs-extra'
 import { ConfigInfo } from './server-types.js'
+import { ReadStream } from 'node:fs'
 
 export namespace Summarizer {
     export type Config = {
@@ -230,6 +231,42 @@ export namespace Summarizer {
                 body: JSON.stringify({ force_index: !!forceIndex })
             })
             return await parseJsonResponse(resp, 'reindexAPI')
+        }
+
+        async readContentFile(fileName: string): Promise<{ stream: ReadStream; size: number; contentType: string; fileName: string }> {
+            if (!this.dataFolder) throw new Error('Interface not initialized.')
+            const safeName = path.basename(fileName)
+            const contentFolder = path.resolve(this.dataFolder, 'content')
+            const resolvedPath = path.resolve(contentFolder, safeName)
+            if (!resolvedPath.startsWith(contentFolder)) {
+                const err = new Error('Invalid file path')
+                ;(err as any).code = 'EINVALIDPATH'
+                throw err
+            }
+
+            const exists = await fs.pathExists(resolvedPath)
+            if (!exists) {
+                const err = new Error('File not found')
+                ;(err as any).code = 'ENOENT'
+                throw err
+            }
+
+            const stat = await fs.stat(resolvedPath)
+            const ext = path.extname(resolvedPath).toLowerCase()
+            const contentType = (() => {
+                if (ext === '.pdf') return 'application/pdf'
+                if (ext === '.png') return 'image/png'
+                if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+                if (ext === '.mp4') return 'video/mp4'
+                return 'application/octet-stream'
+            })()
+
+            return {
+                stream: fs.createReadStream(resolvedPath),
+                size: stat.size,
+                contentType,
+                fileName: path.basename(resolvedPath)
+            }
         }
     }
 }

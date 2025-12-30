@@ -21,6 +21,8 @@ export default function CCTVPanelsColumn({
         patrolMode.active &&
         currentRoute &&
         patrolMode.currentSegment < currentRoute.segments;
+    const baseUrl = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+    const buildContentUrl = (url?: string) => (url ? `${baseUrl}/api/content/${encodeURIComponent(url)}` : '');
 
     return (
         <>
@@ -151,21 +153,32 @@ export default function CCTVPanelsColumn({
                                         border: '1px solid #333'
                                     }}
                                 >
-                                    <div style={{ textAlign: 'center' }}>
-                                        <div style={{ fontSize: '48px', marginBottom: '8px' }}>
-                                            📹
+                                    {cctv.url ? (
+                                        <video
+                                            src={buildContentUrl(cctv.url)}
+                                            autoPlay
+                                            loop
+                                            muted
+                                            controls
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', backgroundColor: '#0f172a' }}
+                                        />
+                                    ) : (
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                                                📹
+                                            </div>
+                                            <div
+                                                style={{
+                                                    fontSize: '11px',
+                                                    color: '#10b981',
+                                                    fontFamily: 'monospace',
+                                                    fontWeight: 600
+                                                }}
+                                            >
+                                                LIVE STREAM
+                                            </div>
                                         </div>
-                                        <div
-                                            style={{
-                                                fontSize: '11px',
-                                                color: '#10b981',
-                                                fontFamily: 'monospace',
-                                                fontWeight: 600
-                                            }}
-                                        >
-                                            LIVE STREAM
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                                 <div
                                     style={{
@@ -267,25 +280,37 @@ export default function CCTVPanelsColumn({
                             border: '2px solid #B12518',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            overflow: 'hidden'
                         }}
                     >
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '64px', marginBottom: '16px' }}>📹</div>
-                            <div
-                                style={{
-                                    fontSize: '20px',
-                                    color: '#10b981',
-                                    fontFamily: 'monospace',
-                                    marginBottom: '8px'
-                                }}
-                            >
-                                LIVE STREAM - FULLSCREEN
+                        {fullscreenCCTV.url ? (
+                            <video
+                                src={buildContentUrl(fullscreenCCTV.url)}
+                                autoPlay
+                                loop
+                                muted
+                                controls
+                                style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#0f172a' }}
+                            />
+                        ) : (
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '64px', marginBottom: '16px' }}>📹</div>
+                                <div
+                                    style={{
+                                        fontSize: '20px',
+                                        color: '#10b981',
+                                        fontFamily: 'monospace',
+                                        marginBottom: '8px'
+                                    }}
+                                >
+                                    LIVE STREAM - FULLSCREEN
+                                </div>
+                                <div style={{ fontSize: '14px', color: '#666' }}>
+                                    CCTV feed would display here
+                                </div>
                             </div>
-                            <div style={{ fontSize: '14px', color: '#666' }}>
-                                CCTV feed would display here
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             )}
