@@ -14,17 +14,12 @@ export type RouteType = 'evacuation' | 'patrol'
 
 export type AnchorType = 'equipment' | 'exit'
 
-export type AnchorImport = {
-    id: string
-    model_id?: string
-}
-
 export type RouteImportSegment = {
     id: string
     label?: string
     from: { x: number; y: number; z: number }
     to: { x: number; y: number; z: number }
-    viewport_id?: string
+    viewport_id: string
 }
 
 export type RouteImport = {
@@ -64,7 +59,6 @@ export type ImportedConfig = {
 
 export type ConfigInfo = {
     user: ServiceUser
-    anchorImport: AnchorImport[] // temporary, can be extracted from bimDots
     routeImport: RouteImport[]
     routeConfig: ImportedConfig
     bimConfig?: BimConfig

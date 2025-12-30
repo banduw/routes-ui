@@ -57,8 +57,7 @@ export namespace Summarizer {
 
         async readSettings(): Promise<Omit<ConfigInfo, 'user'>> {
             const dataFilesPath = path.join(this.dataFolder!, 'dataFiles')
-            const [anchorImport, routeImport, routeConfig] = await Promise.all([
-                fs.readJson(path.join(dataFilesPath, 'anchor-import.json')),
+            const [routeImport, routeConfig] = await Promise.all([
                 fs.readJson(path.join(dataFilesPath, 'route-import.json')),
                 fs.readJson(path.join(dataFilesPath, 'route-config.json'))
             ])
@@ -69,7 +68,6 @@ export namespace Summarizer {
             } catch { }
 
             const info: Omit<ConfigInfo, 'user'> = {
-                anchorImport,
                 routeImport,
                 routeConfig,
                 bimConfig

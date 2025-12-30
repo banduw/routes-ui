@@ -25,11 +25,6 @@ export type SampleQuery = {
     groupNames: string[]
 }
 
-export type AnchorImport = {
-    id: string
-    model_id?: string
-}
-
 export type RouteImportSegment = {
     id: string
     label?: string
@@ -45,7 +40,6 @@ export type RouteImport = {
 
 export type ConfigInfo = {
     user: ServiceUser
-    anchorImport: AnchorImport[] // temporary, can be extracted from bimDots
     routeImport: RouteImport[]
     routeConfig: any
     bimConfig?: any

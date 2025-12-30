@@ -1,4 +1,4 @@
-import type { AnchorImport, ConfigInfo } from '../config/types'
+import type { ConfigInfo } from '../config/types'
 import type {
     Anchor,
     ContentItem,
@@ -22,7 +22,7 @@ const AVAILABLE_COLORS = [
 ];
 
 export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
-    const { routeConfig: config, routeImport, anchorImport } = configInfo
+    const { routeConfig: config, routeImport } = configInfo
 
     const routeExtensionsById = new Map(config.routeExtensions.map(ext => [ext.route_id, ext]));
     const anchorExtensionsById = new Map(config.anchorExtensions.map(ext => [ext.anchor_id, ext]));
@@ -51,19 +51,46 @@ export function buildConfigData(configInfo: ConfigInfo): VirtualPatrolData {
         };
     });
 
-    const anchors: Anchor[] = anchorImport.map((anchor: AnchorImport) => {
-        const extension = anchorExtensionsById.get(anchor.id);
-        const name = extension?.name ?? anchor.id;
-        const type: Anchor['type'] = (() => {
-            const value = typeof extension?.type === 'string' ? extension.type.toLowerCase() : '';
-            return value === 'exit' ? 'exit' : 'equipment';
-        })();
-        return {
-            id: anchor.id,
-            name,
-            type
-        };
-    });
+    const anchors: Anchor[] = (() => {
+        const anchorIds = new Set<string>();
+
+        const bimDots = configInfo.bimDots;
+        if (bimDots && typeof bimDots === 'object') {
+            Object.values(bimDots).forEach(dots => {
+                if (!Array.isArray(dots)) return;
+                dots.forEach(dot => {
+                    if (dot?.anchor) anchorIds.add(dot.anchor);
+                });
+            });
+        }
+        config.anchorExtensions.forEach(ext => {
+            if (ext?.anchor_id) anchorIds.add(ext.anchor_id);
+        });
+        config.projects.forEach(project => {
+            project.anchorMaps.forEach(map => {
+                map.anchors.forEach(anchorId => anchorIds.add(anchorId));
+            });
+            project.contentAnchorMaps.forEach(map => {
+                map.anchors.forEach(anchorId => anchorIds.add(anchorId));
+            });
+        });
+
+        return Array.from(anchorIds)
+            .sort()
+            .map(anchorId => {
+                const extension = anchorExtensionsById.get(anchorId);
+                const name = extension?.name ?? anchorId;
+                const type: Anchor['type'] = (() => {
+                    const value = typeof extension?.type === 'string' ? extension.type.toLowerCase() : '';
+                    return value === 'exit' ? 'exit' : 'equipment';
+                })();
+                return {
+                    id: anchorId,
+                    name,
+                    type
+                };
+            });
+    })();
 
     const content: ContentItem[] = Array.isArray(config.content)
         ? config.content.map(item => ({
