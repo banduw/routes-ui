@@ -240,7 +240,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         if (action === 'start' || action === 'resume') {
             lastActiveNavCommandIdRef.current = command.id;
         }
-        console.log('[Operations] Dispatching navigation command to 3D:', command);
+        // console.log('[Operations] Dispatching navigation command to 3D:', command);
         setNavigationCommand(command);
     };
 
@@ -812,7 +812,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     };
 
     const handleNavigationComplete = (payload: SegmentNavigationComplete): void => {
-        console.log('[Operations] Received navigation completion from 3D:', payload);
+        // console.log('[Operations] Received navigation completion from 3D:', payload);
         const route = routes.find(r => r.id === payload.routeId);
         if (!route) return;
 
