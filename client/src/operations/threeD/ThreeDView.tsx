@@ -9,6 +9,7 @@ import type {
     BimViewport,
     Building,
     Level,
+    RouteWithColor,
     SegmentNavigationCommand,
     SegmentNavigationComplete
 } from './types';
@@ -36,6 +37,7 @@ type AnchorMeta = {
 
 export type ThreeDViewProps = {
     anchors: AnchorRefWithColor[]
+    routes?: RouteWithColor[];
     bimConfig?: BimConfig | null;
     onAnchorClick: (anchor: string) => void
     navigationCommand?: SegmentNavigationCommand | null;
@@ -44,6 +46,7 @@ export type ThreeDViewProps = {
 
 export const ThreeDView: React.FC<ThreeDViewProps> = ({
     anchors,
+    routes = [],
     onAnchorClick: onDotClick,
     navigationCommand = null,
     onNavigationComplete
@@ -308,6 +311,24 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         }
         return groups
     }, [anchors, configInfo, forgeModel])
+
+    useEffect(() => {
+        if (!routes || routes.length === 0) {
+            console.log('[3D View] Routes for visualization: none');
+            return;
+        }
+        const summary = routes.map(route => ({
+            id: route.id,
+            color: route.color,
+            segments: (route.segments ?? []).map(seg => ({
+                id: seg.id,
+                index: seg.segmentIndex,
+                viewport: seg.viewport_id,
+                color: seg.color
+            }))
+        }));
+        console.log('[3D View] Routes for visualization:', summary);
+    }, [routes]);
 
     const handleAnchorClick = useCallback((group: AnchorGroup) => {
         setClickedAnchor(group.anchor)

@@ -1,4 +1,6 @@
 
+import type { RouteImport, RouteImportSegment } from '../../config/types';
+
 export type BimModel = {
     name: string;
     urns: string;
@@ -77,6 +79,17 @@ export type HexColor = string; // "#RRGGBB" format
 export interface AnchorRefWithColor {
     anchor_name: string;
     color: HexColor;
+}
+
+export interface RouteWithColor extends Omit<RouteImport, 'segments'> {
+    color: HexColor;
+    segments: RouteSegmentWithColor[];
+}
+
+export interface RouteSegmentWithColor extends RouteImportSegment {
+    routeId: string;
+    color: HexColor;
+    segmentIndex: number;
 }
 
 export type NavigationCommandAction = 'start' | 'pause' | 'resume' | 'stop';

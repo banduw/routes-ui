@@ -31,7 +31,13 @@ import CCTVPanelsColumn from './CCTVPanelsColumn';
 import { ConfigDataProvider, useConfigDataCtx } from './ConfigDataProvider';
 import { useProjectRoutes } from './useProjectData';
 import { ThreeDView } from './threeD/ThreeDView';
-import type { SegmentNavigationCommand, SegmentNavigationComplete } from './threeD/types';
+import type {
+    RouteSegmentWithColor,
+    RouteWithColor,
+    SegmentNavigationCommand,
+    SegmentNavigationComplete
+} from './threeD/types';
+import { useConfigInfo } from '../config/ConfigInfoContext';
 
 export default function OperationsView() {
     return (
@@ -69,6 +75,7 @@ function OperationsViewContentLoader() {
 }
 
 function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
+    const { configInfo } = useConfigInfo();
     const navigate = useNavigate();
     const location = useLocation();
     const isOnConfigPage = location.pathname.startsWith('/settings');
@@ -201,6 +208,11 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         patrolMode
     ]);
 
+    const visibleRouteIds = useMemo(
+        () => validSelectedRoutes.filter(id => !hiddenRoutes.includes(id)),
+        [hiddenRoutes, validSelectedRoutes]
+    );
+
     const anchorsForThreeD = useMemo(() => {
         if (patrolMode.active) return [];
         const anchorMap = new Map<string, string>();
@@ -215,6 +227,33 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
 
         return Array.from(anchorMap.entries()).map(([anchor_name, color]) => ({ anchor_name, color }));
     }, [displayBundles, patrolMode.active]);
+
+    const routesForThreeD = useMemo<RouteWithColor[]>(() => {
+        if (patrolMode.active) return [];
+        const routeImport = configInfo?.routeImport ?? [];
+        if (!routeImport.length) return [];
+
+        const importMap = new Map(routeImport.map(r => [r.id, r]));
+
+        return visibleRouteIds
+            .map(routeId => {
+                const base = importMap.get(routeId);
+                if (!base) return null;
+                const color = routeColors[routeId] ?? getRouteColorByIndex(ROUTE_COLORS, 0);
+                const segments: RouteSegmentWithColor[] = (base.segments ?? []).map((segment, idx) => ({
+                    ...segment,
+                    routeId: base.id,
+                    color,
+                    segmentIndex: idx + 1
+                }));
+                return {
+                    ...base,
+                    color,
+                    segments
+                } as RouteWithColor;
+            })
+            .filter((r): r is RouteWithColor => Boolean(r));
+    }, [ROUTE_COLORS, configInfo?.routeImport, patrolMode.active, routeColors, visibleRouteIds]);
 
     const handleAnchorClick = (anchorId: string): void => {
         console.log('[3D View] Anchor clicked:', anchorId);
@@ -1084,6 +1123,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
 
                         <ThreeDView
                             anchors={anchorsForThreeD}
+                            routes={routesForThreeD}
                             onAnchorClick={handleAnchorClick}
                             navigationCommand={navigationCommand}
                             onNavigationComplete={handleNavigationComplete}
