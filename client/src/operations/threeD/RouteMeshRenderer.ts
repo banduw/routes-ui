@@ -59,7 +59,6 @@ export class RouteMeshRenderer {
     private materials = new Set<any>();
     private disposed = false;
     private viewports = new Map<string, ViewportPose>();
-    private displayLogCount = 0;
 
     constructor(viewer: Autodesk.Viewing.GuiViewer3D) {
         this.viewer = viewer;
@@ -83,9 +82,6 @@ export class RouteMeshRenderer {
             return;
         }
 
-        this.logOnce('[RouteMeshRenderer] displaySegments called');
-        this.logOnce(`[RouteMeshRenderer] rendering ${segments.length} segment(s)`);
-
         const activeViewport = segments[0]?.viewportId ?? null;
 
         segments.forEach((segment) => {
@@ -93,9 +89,6 @@ export class RouteMeshRenderer {
             if (!mesh) return;
             const group = this.getViewportGroup(segment.viewportId);
             group.add(mesh);
-            if (mesh.geometry?.boundingSphere) {
-                this.logOnce(`[RouteMeshRenderer] segment ${segment.segmentId} radius=${mesh.geometry.boundingSphere.radius?.toFixed?.(2)}`);
-            }
         });
 
         this.setActiveViewport(activeViewport);
@@ -225,11 +218,5 @@ export class RouteMeshRenderer {
         const up = upRaw && (upRaw as any).distanceTo ? upRaw : new THREE.Vector3(0, 0, 1);
         const lifted = up.clone().normalize().multiplyScalar(lift);
         return points.map((p) => p.clone().add(lifted));
-    }
-
-    private logOnce(msg: string): void {
-        if (this.displayLogCount > 4) return;
-        this.displayLogCount += 1;
-        console.log(msg);
     }
 }
