@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import { Home, Sliders } from 'lucide-react';
@@ -31,9 +31,11 @@ import CCTVPanelsColumn from './CCTVPanelsColumn';
 import { ConfigDataProvider, useConfigDataCtx } from './ConfigDataProvider';
 import { useProjectRoutes } from './useProjectData';
 import { ThreeDView } from './threeD/ThreeDView';
+import type { RouteImport } from '../config/types';
 import type {
     RouteSegmentWithColor,
     RouteWithColor,
+    SegmentFocusCommand,
     SegmentNavigationCommand,
     SegmentNavigationComplete
 } from './threeD/types';
@@ -109,6 +111,9 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     const navigationCommandIdRef = useRef(0);
     const lastActiveNavCommandIdRef = useRef<number | null>(null);
     const transitionResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [segmentFocusCommand, setSegmentFocusCommand] = useState<SegmentFocusCommand | null>(null);
+    const segmentFocusCommandIdRef = useRef(0);
+    const previousSelectedRoutesRef = useRef<string[]>([]);
 
     const [fullscreenCCTV, setFullscreenCCTV] = useState<ContentItem | null>(null);
 
@@ -137,6 +142,13 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         routeEntities
     } = data;
     const routes = useProjectRoutes(selectedProject);
+    const routeImportMap = useMemo(() => {
+        const map = new Map<string, RouteImport>();
+        (configInfo?.routeImport ?? []).forEach(route => {
+            map.set(route.id, route);
+        });
+        return map;
+    }, [configInfo?.routeImport]);
 
     const validSelectedRoutes = useMemo(
         () => buildValidSelectedRoutes(selectedRoutes, routes),
@@ -230,14 +242,11 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
 
     const routesForThreeD = useMemo<RouteWithColor[]>(() => {
         if (patrolMode.active) return [];
-        const routeImport = configInfo?.routeImport ?? [];
-        if (!routeImport.length) return [];
-
-        const importMap = new Map(routeImport.map(r => [r.id, r]));
+        if (routeImportMap.size === 0) return [];
 
         return visibleRouteIds
             .map(routeId => {
-                const base = importMap.get(routeId);
+                const base = routeImportMap.get(routeId);
                 if (!base) return null;
                 const color = routeColors[routeId] ?? getRouteColorByIndex(ROUTE_COLORS, 0);
                 const segments: RouteSegmentWithColor[] = (base.segments ?? []).map((segment, idx) => ({
@@ -253,17 +262,39 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                 } as RouteWithColor;
             })
             .filter((r): r is RouteWithColor => Boolean(r));
-    }, [ROUTE_COLORS, configInfo?.routeImport, patrolMode.active, routeColors, visibleRouteIds]);
+    }, [ROUTE_COLORS, patrolMode.active, routeColors, routeImportMap, visibleRouteIds]);
 
-    const handleAnchorClick = (anchorId: string): void => {
-        console.log('[3D View] Anchor clicked:', anchorId);
-    };
+    const getSegmentId = useCallback((routeId: string, segmentIndex: number): string | null => {
+        const base = routeImportMap.get(routeId);
+        const segment = base?.segments?.[segmentIndex - 1];
+        return segment?.id ?? null;
+    }, [routeImportMap]);
+
+    const sendSegmentFocusCommand = useCallback((segmentId: string | null): void => {
+        if (!segmentId) return;
+        segmentFocusCommandIdRef.current += 1;
+        setSegmentFocusCommand({ id: segmentFocusCommandIdRef.current, segmentId });
+    }, []);
+
+    const handleAnchorClick = (_anchorId: string): void => {};
+
+    useEffect(() => {
+        const prev = previousSelectedRoutesRef.current;
+        const added = selectedRoutes.filter(id => !prev.includes(id));
+        if (added.length > 0) {
+            const latestAddedRouteId = added[added.length - 1];
+            const firstSegmentId = getSegmentId(latestAddedRouteId, 1);
+            if (firstSegmentId) {
+                sendSegmentFocusCommand(firstSegmentId);
+            }
+        }
+        previousSelectedRoutesRef.current = selectedRoutes;
+    }, [getSegmentId, selectedRoutes, sendSegmentFocusCommand]);
 
     useEffect(() => {
         if (!pendingNavigation) return;
         if (!patrolMode.active || patrolMode.paused || patrolMode.routeId !== pendingNavigation.routeId) return;
 
-        console.log('[Operations] Sending pending navigation to 3D:', pendingNavigation);
         sendNavigationCommand('start', pendingNavigation.routeId, pendingNavigation.segment);
         setPendingNavigation(null);
     }, [patrolMode.active, patrolMode.paused, patrolMode.routeId, pendingNavigation]);
@@ -280,7 +311,6 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         if (action === 'start' || action === 'resume') {
             lastActiveNavCommandIdRef.current = command.id;
         }
-        // console.log('[Operations] Dispatching navigation command to 3D:', command);
         setNavigationCommand(command);
     };
 
@@ -852,13 +882,11 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     };
 
     const handleNavigationComplete = (payload: SegmentNavigationComplete): void => {
-        // console.log('[Operations] Received navigation completion from 3D:', payload);
         const route = routes.find(r => r.id === payload.routeId);
         if (!route) return;
 
         const expectedCommandId = lastActiveNavCommandIdRef.current;
         if (expectedCommandId && payload.commandId !== expectedCommandId) {
-            console.log('[Operations] Stale navigation completion ignored (command id mismatch).', { payload, expectedCommandId });
             return;
         }
 
@@ -868,13 +896,11 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         setPatrolMode(prev => {
             if (!prev.active || prev.routeId !== payload.routeId) return prev;
             if (prev.paused) {
-                console.log('[Operations] Patrol paused; ignoring navigation completion.');
                 return prev;
             }
 
             const completedSegment = prev.currentSegment;
             if (payload.segment !== completedSegment) {
-                console.log('[Operations] Navigation completion segment mismatch; using current segment state.', { payload, current: completedSegment });
             }
 
             const nextSegment = completedSegment + 1;
@@ -930,12 +956,9 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     };
 
     const setRouteColor = (routeId: string, color: string): void => {
-        console.log('setRouteColor called:', { routeId, color, colorMode });
         if (colorMode === 'instance') {
-            console.log('Setting individual color');
             setRouteColors(prev => ({ ...prev, [routeId]: color }));
         } else {
-            console.log('Setting by type');
             const route = routes.find(r => r.id === routeId);
             if (!route) return;
             const sameType = routes.filter(r => r.type === route.type);
@@ -953,16 +976,12 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     };
 
     const setAnchorColor = (anchorId: string, color: string): void => {
-        console.log('setAnchorColor called:', { anchorId, color, colorMode });
         if (colorMode === 'instance') {
-            console.log('Setting individual anchor color');
             setAnchorColors(prev => ({ ...prev, [anchorId]: color }));
         } else {
-            console.log('Setting anchor color by type');
             const anchor = anchors.find(a => a.id === anchorId);
             if (!anchor) return;
             const sameType = anchors.filter(a => a.type === anchor.type);
-            console.log('Same type anchors:', sameType.map(a => a.id));
             setAnchorColors(prev => {
                 const newColors = { ...prev };
                 sameType.forEach(a => { newColors[a.id] = color; });
@@ -1059,13 +1078,19 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                             const panelStyle = getPanelStyle(panel, routeColor, routeId);
 
                             const changeSegment = (delta: number) => {
+                                const panelState = routePanels[routeId];
+                                if (!panelState) return;
+                                const nextSegment = panelState.segment + delta;
+                                if (nextSegment < 1 || nextSegment > route.segments) return;
+
                                 setRoutePanels(prev => {
                                     const existing = prev[routeId];
                                     if (!existing) return prev;
-                                    const nextSegment = existing.segment + delta;
-                                    if (nextSegment < 1 || nextSegment > route.segments) return prev;
                                     return { ...prev, [routeId]: { ...existing, segment: nextSegment } };
                                 });
+
+                                const segmentId = getSegmentId(routeId, nextSegment);
+                                if (segmentId) sendSegmentFocusCommand(segmentId);
                             };
 
                             return (
@@ -1127,6 +1152,8 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                             onAnchorClick={handleAnchorClick}
                             navigationCommand={navigationCommand}
                             onNavigationComplete={handleNavigationComplete}
+                            segmentToShow={segmentFocusCommand}
+                            virtualPatrolActive={patrolMode.active}
                         />
                     </div>
                 </div>

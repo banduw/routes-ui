@@ -10,6 +10,8 @@ import type {
     Building,
     Level,
     RouteWithColor,
+    RouteSegmentWithColor,
+    SegmentFocusCommand,
     SegmentNavigationCommand,
     SegmentNavigationComplete
 } from './types';
@@ -43,6 +45,8 @@ export type ThreeDViewProps = {
     onAnchorClick: (anchor: string) => void
     navigationCommand?: SegmentNavigationCommand | null;
     onNavigationComplete?: (payload: SegmentNavigationComplete) => void;
+    segmentToShow?: SegmentFocusCommand | null;
+    virtualPatrolActive?: boolean;
 };
 
 export const ThreeDView: React.FC<ThreeDViewProps> = ({
@@ -50,7 +54,9 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
     routes = [],
     onAnchorClick: onDotClick,
     navigationCommand = null,
-    onNavigationComplete
+    onNavigationComplete,
+    segmentToShow = null,
+    virtualPatrolActive = false
 }) => {
     const { configInfo } = useConfigInfo();
     const navigationConfig = configInfo?.routeImport ?? [];
@@ -65,6 +71,8 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
     const [canGoBack, setCanGoBack] = useState(false);
     const suppressNextSectorApply = useRef(false);
     const pendingLevelRef = useRef<string | null>(null);
+    const lastSegmentFocusIdRef = useRef<number | null>(null);
+    const prevPatrolActiveRef = useRef(false);
     const ceilingDiscovery = useRef(new CeilingDiscovery())
     const [clickedAnchor, setClickedAnchor] = useState<string>()
 
@@ -314,30 +322,45 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         return groups
     }, [anchors, configInfo, forgeModel])
 
-    useEffect(() => {
-        if (!routes || routes.length === 0) {
-            console.log('[3D View] Routes for visualization: none');
-            return;
-        }
-        const summary = routes.map(route => ({
-            id: route.id,
-            color: route.color,
-            segments: (route.segments ?? []).map(seg => ({
-                id: seg.id,
-                index: seg.segmentIndex,
-                viewport: seg.viewport_id,
-                color: seg.color
-            }))
-        }));
-        console.log('[3D View] Routes for visualization:', summary);
+    const segmentsById = useMemo(() => {
+        const map = new Map<string, RouteSegmentWithColor>();
+        routes?.forEach(route => {
+            (route.segments ?? []).forEach(seg => {
+                if (seg.id) {
+                    map.set(seg.id, seg);
+                }
+            });
+        });
+        return map;
     }, [routes]);
 
     useEffect(() => {
-        const renderer = routeRendererRef.current;
-        if (!renderer) {
-            console.log('[3D View] Route renderer not ready');
-            return;
+        if (!segmentToShow) return;
+        if (segmentToShow.id === lastSegmentFocusIdRef.current) return;
+        lastSegmentFocusIdRef.current = segmentToShow.id;
+
+        const segment = segmentsById.get(segmentToShow.segmentId);
+        if (!segment) return;
+
+        const targetLevel = selectedBuilding?.levels?.find(level => level.sectorName === segment.sectorName);
+
+        if (targetLevel && targetLevel.name !== selectedLevel) {
+            pendingLevelRef.current = targetLevel.name;
+            setSelectedLevel(targetLevel.name);
         }
+    }, [segmentToShow, segmentsById, selectedBuilding?.levels, selectedLevel]);
+
+    useEffect(() => {
+        if (virtualPatrolActive && !prevPatrolActiveRef.current) {
+            pendingLevelRef.current = ALL_LEVELS_LABEL;
+            setSelectedLevel(ALL_LEVELS_LABEL);
+        }
+        prevPatrolActiveRef.current = virtualPatrolActive;
+    }, [virtualPatrolActive]);
+
+    useEffect(() => {
+        const renderer = routeRendererRef.current;
+        if (!renderer) return;
         if (!viewerReady) {
             renderer.clear();
             return;
@@ -351,7 +374,7 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         const segments: RouteSegmentInput[] = [];
         routes.forEach((route) => {
             (route.segments ?? []).forEach((seg) => {
-                const viewportId = seg.viewport_id || 'default';
+                const viewportId = seg.sectorName || 'default';
                 const points = [
                     new THREE.Vector3(seg.from.x, seg.from.y, seg.from.z),
                     new THREE.Vector3(seg.to.x, seg.to.y, seg.to.z)

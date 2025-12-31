@@ -19,7 +19,7 @@ export type RouteImportSegment = {
     label?: string
     from: { x: number; y: number; z: number }
     to: { x: number; y: number; z: number }
-    viewport_id: string
+    sectorName: string
 }
 
 export type RouteImport = {

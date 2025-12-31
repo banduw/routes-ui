@@ -106,3 +106,8 @@ export interface SegmentNavigationComplete {
     segment: number;
     commandId: number;
 }
+
+export interface SegmentFocusCommand {
+    id: number;
+    segmentId: string;
+}
