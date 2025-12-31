@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import type { Building, Level } from './types';
 
@@ -37,6 +37,23 @@ const ThreeDToolbar: React.FC<ThreeDToolbarProps> = ({
 }) => {
     const [showBuildingDropdown, setShowBuildingDropdown] = useState(false);
     const [showLevelDropdown, setShowLevelDropdown] = useState(false);
+    const [buildingDropdownHeight, setBuildingDropdownHeight] = useState('60vh');
+    const [levelDropdownHeight, setLevelDropdownHeight] = useState('60vh');
+    const buildingTriggerRef = useRef<HTMLButtonElement | null>(null);
+    const levelTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+    const updateDropdownHeights = useCallback(() => {
+        const computeAvailableHeight = (trigger: HTMLElement | null) => {
+            if (!trigger) return '60vh';
+            const rect = trigger.getBoundingClientRect();
+            const padding = 16; // keep dropdown from touching viewport edge
+            const available = window.innerHeight - rect.bottom - padding;
+            return `${Math.max(available, 160)}px`; // ensure a usable minimum height
+        };
+
+        setBuildingDropdownHeight(computeAvailableHeight(buildingTriggerRef.current));
+        setLevelDropdownHeight(computeAvailableHeight(levelTriggerRef.current));
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -60,6 +77,17 @@ const ThreeDToolbar: React.FC<ThreeDToolbarProps> = ({
             document.removeEventListener('keydown', handleEscKey);
         };
     }, []);
+
+    useEffect(() => {
+        updateDropdownHeights();
+        window.addEventListener('resize', updateDropdownHeights);
+        window.addEventListener('scroll', updateDropdownHeights, true);
+
+        return () => {
+            window.removeEventListener('resize', updateDropdownHeights);
+            window.removeEventListener('scroll', updateDropdownHeights, true);
+        };
+    }, [updateDropdownHeights]);
 
     return (
         <div
@@ -130,7 +158,13 @@ const ThreeDToolbar: React.FC<ThreeDToolbarProps> = ({
             <div className="flex items-center gap-1 px-1">
                 <div className="relative building-dropdown-container">
                     <button
-                        onClick={() => isModelReady && setShowBuildingDropdown(!showBuildingDropdown)}
+                        ref={buildingTriggerRef}
+                        onClick={() => {
+                            if (!isModelReady) return;
+                            updateDropdownHeights();
+                            setShowBuildingDropdown((prev) => !prev);
+                            setShowLevelDropdown(false);
+                        }}
                         className="min-w-40 rounded-lg px-3 py-2 text-sm flex items-center justify-between transition-colors"
                         style={{ backgroundColor: 'transparent', color: isModelReady ? '#e5e5e5' : '#555555' }}
                         onMouseEnter={(e) => isModelReady && (e.currentTarget.style.backgroundColor = '#3a3a3a')}
@@ -143,7 +177,12 @@ const ThreeDToolbar: React.FC<ThreeDToolbarProps> = ({
                     {showBuildingDropdown && (
                         <div
                             className="absolute left-0 z-20 w-full mt-1 rounded-lg shadow-xl overflow-hidden"
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #444444' }}
+                            style={{
+                                backgroundColor: '#2a2a2a',
+                                border: '1px solid #444444',
+                                maxHeight: buildingDropdownHeight,
+                                overflowY: 'auto'
+                            }}
                         >
                             {buildingOptions.map((building) => (
                                 <button
@@ -169,7 +208,13 @@ const ThreeDToolbar: React.FC<ThreeDToolbarProps> = ({
 
                 <div className="relative level-dropdown-container">
                     <button
-                        onClick={() => isModelReady && setShowLevelDropdown(!showLevelDropdown)}
+                        ref={levelTriggerRef}
+                        onClick={() => {
+                            if (!isModelReady) return;
+                            updateDropdownHeights();
+                            setShowLevelDropdown((prev) => !prev);
+                            setShowBuildingDropdown(false);
+                        }}
                         className="min-w-30 rounded-lg px-3 py-2 text-sm flex items-center justify-between transition-colors"
                         style={{ backgroundColor: 'transparent', color: isModelReady ? '#e5e5e5' : '#555555' }}
                         onMouseEnter={(e) => isModelReady && (e.currentTarget.style.backgroundColor = '#3a3a3a')}
@@ -182,7 +227,12 @@ const ThreeDToolbar: React.FC<ThreeDToolbarProps> = ({
                     {showLevelDropdown && (
                         <div
                             className="absolute left-0 z-20 w-full mt-1 rounded-lg shadow-xl overflow-hidden"
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #444444' }}
+                            style={{
+                                backgroundColor: '#2a2a2a',
+                                border: '1px solid #444444',
+                                maxHeight: levelDropdownHeight,
+                                overflowY: 'auto'
+                            }}
                         >
                             {levelOptions.map(({ name }) => (
                                 <button
