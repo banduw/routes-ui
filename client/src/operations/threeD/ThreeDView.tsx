@@ -371,6 +371,10 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
             return;
         }
 
+        const activeSegmentId = segmentToShow?.segmentId ?? null;
+        const baseRadius = 0.30;
+        const highlightRadius = baseRadius * 2;
+
         const segments: RouteSegmentInput[] = [];
         routes.forEach((route) => {
             (route.segments ?? []).forEach((seg) => {
@@ -379,19 +383,22 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
                     new THREE.Vector3(seg.from.x, seg.from.y, seg.from.z),
                     new THREE.Vector3(seg.to.x, seg.to.y, seg.to.z)
                 ];
+                const segmentId = seg.id ?? `${route.id}-${seg.segmentIndex ?? 0}`;
+                const radius = segmentId === activeSegmentId ? highlightRadius : baseRadius;
                 segments.push({
-                    segmentId: seg.id ?? `${route.id}-${seg.segmentIndex ?? 0}`,
+                    segmentId,
                     viewportId,
                     points,
                     color: route.color ?? seg.color,
                     routeId: route.id,
-                    segmentIndex: seg.segmentIndex
+                    segmentIndex: seg.segmentIndex,
+                    radius
                 });
             });
         });
 
-        renderer.displaySegments(segments, { materialType: 'basic' });
-    }, [routes, viewerReady]);
+        renderer.displaySegments(segments, { materialType: 'basic', radius: baseRadius });
+    }, [routes, viewerReady, segmentToShow]);
 
     const handleAnchorClick = useCallback((group: AnchorGroup) => {
         setClickedAnchor(group.anchor)

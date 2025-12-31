@@ -18,6 +18,7 @@ export type RouteSegmentInput = {
     viewportId: string;
     points: THREE.Vector3[];
     color?: string | number;
+    radius?: number;
     routeId?: string;
     segmentIndex?: number;
 };
@@ -82,8 +83,6 @@ export class RouteMeshRenderer {
             return;
         }
 
-        const activeViewport = segments[0]?.viewportId ?? null;
-
         segments.forEach((segment) => {
             const mesh = this.buildSegmentMesh(segment, mergedOpts);
             if (!mesh) return;
@@ -91,7 +90,7 @@ export class RouteMeshRenderer {
             group.add(mesh);
         });
 
-        this.setActiveViewport(activeViewport);
+        this.setActiveViewport(null);
         this.viewer.impl.invalidate(true, true, true);
     }
 
@@ -165,10 +164,11 @@ export class RouteMeshRenderer {
         }
         const curve = new THREE.CatmullRomCurve3(liftedPoints, false, 'centripetal', opts.tension);
         const tubularSegments = Math.max(16, (liftedPoints.length - 1) * opts.tubularSegmentsPerEdge);
+        const radius = segment.radius ?? opts.radius;
         const geometry = new (THREE as any).TubeGeometry(
             curve,
             tubularSegments,
-            opts.radius,
+            radius,
             opts.radialSegments,
             false
         );

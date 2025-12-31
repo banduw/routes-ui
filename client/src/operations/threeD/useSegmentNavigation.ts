@@ -24,8 +24,8 @@ type NavigationState = {
 const TURN_DURATION_MS = 800;
 const WALK_SPEED_UNITS_PER_SEC = 5;
 const MIN_WALK_DURATION_MS = 300;
-const VERTICAL_EPS = 1e-3;
-
+const Z_CONTINUATION_EPS_METERS = 0.2;
+const XY_CONTINUATION_EPS_METERS = 5.0;
 export function useSegmentNavigation({
     navigationCommand,
     navigationConfig,
@@ -42,6 +42,8 @@ export function useSegmentNavigation({
     const navigationRafRef = useRef<number | null>(null);
     const navigationStateRef = useRef<NavigationState | null>(null);
     const lastNavCommandIdRef = useRef<number | null>(null);
+    const lastEyeRef = useRef<THREE.Vector3 | null>(null);
+    const lastNavEndRef = useRef<THREE.Vector3 | null>(null);
 
     const clearNavigationRaf = useCallback(() => {
         if (navigationRafRef.current !== null) {
@@ -65,6 +67,7 @@ export function useSegmentNavigation({
         viewer.navigation.setView(eye, target);
         viewer.navigation.setCameraUpVector(viewer.navigation.getWorldUpVector());
         viewer.impl.invalidate(true, true, true);
+        lastEyeRef.current = eye.clone();
     }, [viewerRef]);
 
     const easeInOut = useCallback((t: number) => {
@@ -73,6 +76,10 @@ export function useSegmentNavigation({
     }, []);
 
     const finalizeNavigation = useCallback((command: SegmentNavigationCommand) => {
+        const state = navigationStateRef.current;
+        if (state?.pathTo) {
+            lastNavEndRef.current = state.pathTo.clone();
+        }
         clearNavigationRaf();
         navigationStateRef.current = null;
         navigationPausedRef.current = false;
@@ -116,16 +123,15 @@ export function useSegmentNavigation({
             }
         } else {
             if (rawProgress >= 1) {
-                setView(state.pathTo.clone(), state.pathTo.clone().add(state.targetDir));
+                const finalEye = state.pathTo.clone().sub(state.targetDir.clone().setLength(state.offset));
+                setView(finalEye, finalEye.clone().add(state.targetDir));
                 finalizeNavigation(state.command);
                 return;
             }
 
             const pathPoint = state.pathFrom.clone().lerp(state.pathTo, eased);
             const eye = pathPoint.clone().sub(state.targetDir.clone().setLength(state.offset));
-            if (!state.loggedWalkStart) {
-                state.loggedWalkStart = true;
-            }
+            if (!state.loggedWalkStart) state.loggedWalkStart = true;
             setView(eye, eye.clone().add(state.targetDir));
         }
 
@@ -189,7 +195,19 @@ export function useSegmentNavigation({
         const from = new THREE.Vector3(segment.from.x, segment.from.y, segment.from.z);
         const to = new THREE.Vector3(segment.to.x, segment.to.y, segment.to.z);
         const delta = to.clone().sub(from);
-        const isVertical = Math.abs(delta.x) + Math.abs(delta.y) < VERTICAL_EPS;
+        const horizMag = Math.hypot(delta.x, delta.y);
+        const vertMag = Math.abs(delta.z);
+        const isVertical = vertMag > 0 && horizMag <= Math.max(1, vertMag * 0.1);
+        const lastBase = lastNavEndRef.current ?? lastEyeRef.current;
+        const model = viewer.model;
+        const metersPerUnit = typeof model?.getUnitScale === 'function' ? model.getUnitScale() : 1;
+
+        const zDelta = lastBase ? Math.abs(lastBase.z - from.z) * metersPerUnit : Number.POSITIVE_INFINITY;
+        const xyDelta = lastBase ? Math.hypot(lastBase.x - from.x, lastBase.y - from.y) * metersPerUnit : Number.POSITIVE_INFINITY;
+        const isContinuation = isVertical
+            && !!lastBase
+            && zDelta < Z_CONTINUATION_EPS_METERS
+            && xyDelta < XY_CONTINUATION_EPS_METERS;
 
         const currentDir = buildDirectionFromCamera(viewer);
 
@@ -204,23 +222,42 @@ export function useSegmentNavigation({
         })();
 
         const offset = isVertical ? 0 : Math.max(1, Math.min(4, delta.length() * 0.25 + 0.5));
-        const startEye = from.clone().sub(targetDir.clone().setLength(offset));
 
-        setView(startEye, isVertical ? startEye.clone().add(targetDir) : from.clone());
+        let startEye: THREE.Vector3;
+        let pathFrom = from.clone();
+        let pathTo = to.clone();
 
-        const distance = startEye.distanceTo(to);
+        if (isVertical) {
+            startEye = isContinuation && lastEyeRef.current ? lastEyeRef.current.clone() : from.clone();
+            pathFrom = startEye.clone();
+            pathTo = startEye.clone();
+            pathTo.z = startEye.z + delta.z;
+        } else {
+            startEye = from.clone().sub(targetDir.clone().setLength(offset));
+        }
+
+        const distance = startEye.distanceTo(pathTo);
         const walkDuration = Math.max(MIN_WALK_DURATION_MS, (distance / WALK_SPEED_UNITS_PER_SEC) * 1000);
+
+        const initialPhase: NavigationPhase = isVertical && isContinuation ? 'walk' : 'turn';
+        const initialPhaseDuration = initialPhase === 'walk' ? Math.max(1, walkDuration) : TURN_DURATION_MS;
+
+        if (!(isVertical && isContinuation)) {
+            setView(startEye, isVertical ? startEye.clone().add(targetDir) : from.clone());
+        } else {
+            setView(startEye, startEye.clone().add(targetDir));
+        }
 
         navigationStateRef.current = {
             command,
-            pathFrom: from,
-            pathTo: to,
+            pathFrom,
+            pathTo,
             initialDir: currentDir,
             targetDir,
             offset,
-            phase: 'turn',
-            phaseStartTime: null,
-            phaseDuration: TURN_DURATION_MS,
+            phase: initialPhase,
+            phaseStartTime: initialPhase === 'walk' ? performance.now() : null,
+            phaseDuration: initialPhaseDuration,
             turnDuration: TURN_DURATION_MS,
             walkDuration,
             progress: 0,
@@ -231,7 +268,7 @@ export function useSegmentNavigation({
         activeNavigationRef.current = command;
         navigationPausedRef.current = false;
         navigationRafRef.current = requestAnimationFrame(runNavigationFrame);
-    }, [MIN_WALK_DURATION_MS, TURN_DURATION_MS, VERTICAL_EPS, WALK_SPEED_UNITS_PER_SEC, buildDirectionFromCamera, ensureBimWalkActive, navigationConfig, runNavigationFrame, setView, stopNavigation, viewerRef]);
+    }, [MIN_WALK_DURATION_MS, TURN_DURATION_MS, WALK_SPEED_UNITS_PER_SEC, buildDirectionFromCamera, ensureBimWalkActive, navigationConfig, runNavigationFrame, setView, stopNavigation, viewerRef]);
 
     const pauseNavigation = useCallback((command: SegmentNavigationCommand) => {
         const active = activeNavigationRef.current;
