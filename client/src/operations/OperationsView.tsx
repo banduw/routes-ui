@@ -823,6 +823,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         }
 
         let nextSegmentTarget: { routeId: string; segment: number } | null = null;
+        let reachedEnd = false;
 
         setPatrolMode(prev => {
             if (!prev.active || prev.routeId !== payload.routeId) return prev;
@@ -838,6 +839,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
 
             const nextSegment = completedSegment + 1;
             if (nextSegment > route.segments) {
+                reachedEnd = true;
                 return { ...prev, transitioning: false };
             }
 
@@ -854,6 +856,13 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                 countdown: 5
             };
         });
+
+        if (reachedEnd) {
+            setPendingNavigation(null);
+            lastActiveNavCommandIdRef.current = null;
+            stopPatrol();
+            return;
+        }
 
         if (nextSegmentTarget) {
             setPendingNavigation(nextSegmentTarget);

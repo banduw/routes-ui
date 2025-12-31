@@ -48,6 +48,7 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
     onNavigationComplete
 }) => {
     const { configInfo } = useConfigInfo();
+    const navigationConfig = configInfo?.routeImport ?? [];
 
     const hostContainer = useRef<HTMLDivElement | null>(null);
     const forgeViewerRef = useRef<Autodesk.Viewing.GuiViewer3D | null>(null);
@@ -60,11 +61,11 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
     const pendingLevelRef = useRef<string | null>(null);
     const ceilingDiscovery = useRef(new CeilingDiscovery())
     const [clickedAnchor, setClickedAnchor] = useState<string>()
-    const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const activeNavigationRef = useRef<SegmentNavigationCommand | null>(null);
     const navigationPausedRef = useRef(false);
-    const navigationRemainingRef = useRef<number>(0);
-    const navigationLastStartRef = useRef<number | null>(null);
+    const navigationRafRef = useRef<number | null>(null);
+    const navigationStateRef = useRef<NavigationState | null>(null);
+    const lastNavCommandIdRef = useRef<number | null>(null);
 
     const buildingOptions = useMemo(() => {
         return configInfo?.bimConfig?.buildings ?? []
@@ -317,10 +318,33 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         onDotClick(group.anchor)
     }, []);
 
-    const clearNavigationTimer = useCallback(() => {
-        if (navigationTimerRef.current) {
-            clearTimeout(navigationTimerRef.current);
-            navigationTimerRef.current = null;
+    type NavigationPhase = 'turn' | 'walk';
+    type NavigationState = {
+        command: SegmentNavigationCommand;
+        pathFrom: THREE.Vector3;
+        pathTo: THREE.Vector3;
+        initialDir: THREE.Vector3;
+        targetDir: THREE.Vector3;
+        offset: number;
+        phase: NavigationPhase;
+        phaseStartTime: number | null;
+        phaseDuration: number;
+        turnDuration: number;
+        walkDuration: number;
+        progress: number;
+        pausedAt: number | null;
+        loggedWalkStart: boolean;
+    };
+
+    const TURN_DURATION_MS = 800;
+    const WALK_SPEED_UNITS_PER_SEC = 5;
+    const MIN_WALK_DURATION_MS = 300;
+    const VERTICAL_EPS = 1e-3;
+
+    const clearNavigationRaf = useCallback(() => {
+        if (navigationRafRef.current !== null) {
+            cancelAnimationFrame(navigationRafRef.current);
+            navigationRafRef.current = null;
         }
     }, []);
 
@@ -333,78 +357,251 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         });
     }, [onNavigationComplete]);
 
-    const startNavigation = useCallback((command: SegmentNavigationCommand, durationMs: number = 5000) => {
-        clearNavigationTimer();
-        activeNavigationRef.current = command;
+    const setView = useCallback((eye: THREE.Vector3, target: THREE.Vector3) => {
+        const viewer = forgeViewerRef.current;
+        if (!viewer) return;
+        viewer.navigation.setView(eye, target);
+        viewer.navigation.setCameraUpVector(viewer.navigation.getWorldUpVector());
+        viewer.impl.invalidate(true, true, true);
+    }, []);
+
+    const easeInOut = useCallback((t: number) => {
+        const clamped = Math.min(1, Math.max(0, t));
+        return clamped * clamped * (3 - 2 * clamped);
+    }, []);
+
+    const finalizeNavigation = useCallback((command: SegmentNavigationCommand) => {
+        clearNavigationRaf();
+        navigationStateRef.current = null;
         navigationPausedRef.current = false;
-        navigationRemainingRef.current = durationMs;
-        navigationLastStartRef.current = performance.now();
-        console.log('[ThreeDView] Starting navigation simulation:', { command, durationMs });
+        activeNavigationRef.current = null;
+        notifyNavigationComplete(command);
+    }, [clearNavigationRaf, notifyNavigationComplete]);
 
-        navigationTimerRef.current = setTimeout(() => {
-            console.log('[ThreeDView] Navigation simulation complete:', command);
-            activeNavigationRef.current = null;
-            navigationTimerRef.current = null;
-            navigationRemainingRef.current = 0;
-            navigationLastStartRef.current = null;
-            notifyNavigationComplete(command);
-        }, durationMs);
-    }, [clearNavigationTimer, notifyNavigationComplete]);
+    const logNav = useCallback((msg: string, data?: Record<string, any>) => {
+        // Structured log for debugging navigation artifacts.
+        // eslint-disable-next-line no-console
+        console.log('[ThreeDNav]', msg, data ?? {});
+    }, []);
 
-    const pauseNavigation = useCallback((command: SegmentNavigationCommand) => {
-        const active = activeNavigationRef.current;
-        if (!active || active.routeId !== command.routeId) {
-            console.log('[ThreeDView] Pause ignored; no matching active navigation.', { command, active });
-            return;
-        }
+    const runNavigationFrame = useCallback(() => {
+        const state = navigationStateRef.current;
+        const viewerReadyNow = Boolean(forgeViewerRef.current);
+        if (!state || !viewerReadyNow) return;
+
         if (navigationPausedRef.current) {
-            console.log('[ThreeDView] Pause ignored; navigation already paused.');
+            navigationRafRef.current = requestAnimationFrame(runNavigationFrame);
             return;
         }
 
         const now = performance.now();
-        const elapsed = navigationLastStartRef.current ? now - navigationLastStartRef.current : 0;
-        const remaining = Math.max(0, (navigationRemainingRef.current || 0) - elapsed);
-        navigationRemainingRef.current = remaining;
+        if (state.phaseStartTime === null) {
+            state.phaseStartTime = now - state.progress * state.phaseDuration;
+        }
+
+        const elapsed = now - (state.phaseStartTime ?? now);
+        const rawProgress = state.phaseDuration <= 0 ? 1 : Math.min(1, elapsed / state.phaseDuration);
+        const eased = easeInOut(rawProgress);
+        state.progress = rawProgress;
+
+        if (state.phase === 'turn') {
+            const dir = state.initialDir.clone().lerp(state.targetDir, eased).normalize();
+            const eye = state.pathFrom.clone().sub(state.targetDir.clone().setLength(state.offset));
+            setView(eye, eye.clone().add(dir));
+
+            if (rawProgress >= 1) {
+                state.phase = 'walk';
+                state.phaseDuration = state.walkDuration;
+                state.phaseStartTime = null;
+                state.progress = 0;
+                state.loggedWalkStart = false;
+                navigationRafRef.current = requestAnimationFrame(runNavigationFrame);
+                return;
+            }
+        } else {
+            if (rawProgress >= 1) {
+                setView(state.pathTo.clone(), state.pathTo.clone().add(state.targetDir));
+                logNav('walk-complete', {
+                    routeId: state.command.routeId,
+                    segment: state.command.segment,
+                    finalEye: state.pathTo.toArray(),
+                    targetDir: state.targetDir.toArray()
+                });
+                finalizeNavigation(state.command);
+                return;
+            }
+
+            const pathPoint = state.pathFrom.clone().lerp(state.pathTo, eased);
+            const eye = pathPoint.clone().sub(state.targetDir.clone().setLength(state.offset));
+            if (!state.loggedWalkStart) {
+                logNav('walk-start', {
+                    routeId: state.command.routeId,
+                    segment: state.command.segment,
+                    eye: eye.toArray(),
+                    pathPoint: pathPoint.toArray(),
+                    offset: state.offset,
+                    targetDir: state.targetDir.toArray(),
+                    walkDurationMs: state.walkDuration
+                });
+                state.loggedWalkStart = true;
+            }
+            setView(eye, eye.clone().add(state.targetDir));
+        }
+
+        navigationRafRef.current = requestAnimationFrame(runNavigationFrame);
+    }, [easeInOut, finalizeNavigation, logNav, setView]);
+
+    const stopNavigation = useCallback((_command?: SegmentNavigationCommand) => {
+        clearNavigationRaf();
+        navigationStateRef.current = null;
+        navigationPausedRef.current = false;
+        activeNavigationRef.current = null;
+    }, [clearNavigationRaf]);
+
+    const ensureBimWalkActive = useCallback(async (viewer: Autodesk.Viewing.GuiViewer3D): Promise<boolean> => {
+        const extId = 'Autodesk.BimWalk';
+        let ext: any = viewer.getExtension?.(extId);
+        if (!ext && viewer.loadExtension) {
+            try {
+                ext = await viewer.loadExtension(extId);
+            } catch {
+                return false;
+            }
+        }
+        if (!ext) return false;
+
+        const modes: string[] = ext.getModes?.() || [];
+        const mode = modes[0];
+        if (mode) {
+            if (!ext.isActive?.(mode)) ext.activate?.(mode);
+        } else {
+            ext.activate?.();
+        }
+        return true;
+    }, []);
+
+    const buildDirectionFromCamera = useCallback((viewer: Autodesk.Viewing.GuiViewer3D): THREE.Vector3 => {
+        const camera = viewer.getCamera?.();
+        const dir = new THREE.Vector3();
+        if (camera?.getWorldDirection) {
+            camera.getWorldDirection(dir);
+        }
+        if (!Number.isFinite(dir.length()) || dir.length() < 1e-6) {
+            return new THREE.Vector3(1, 0, 0);
+        }
+        return dir.normalize();
+    }, []);
+
+    const startNavigation = useCallback(async (command: SegmentNavigationCommand) => {
+        const viewer = forgeViewerRef.current;
+        if (!viewer) return;
+
+        const ready = await ensureBimWalkActive(viewer);
+        if (!ready) return;
+
+        const route = navigationConfig.find(r => r.id === command.routeId);
+        const segment = route?.segments?.[command.segment - 1];
+        if (!segment) return;
+
+        stopNavigation();
+
+        const from = new THREE.Vector3(segment.from.x, segment.from.y, segment.from.z);
+        const to = new THREE.Vector3(segment.to.x, segment.to.y, segment.to.z);
+        const delta = to.clone().sub(from);
+        const isVertical = Math.abs(delta.x) + Math.abs(delta.y) < VERTICAL_EPS;
+
+        const currentDir = buildDirectionFromCamera(viewer);
+
+        const targetDir = (() => {
+            if (!isVertical) {
+                const dir = delta.clone().normalize();
+                if (dir.lengthSq() > 0) return dir;
+            }
+            const horiz = new THREE.Vector3(currentDir.x, currentDir.y, 0);
+            if (horiz.lengthSq() === 0) horiz.set(1, 0, 0);
+            return horiz.normalize();
+        })();
+
+        const offset = isVertical ? 0 : Math.max(1, Math.min(4, delta.length() * 0.25 + 0.5));
+        const startEye = from.clone().sub(targetDir.clone().setLength(offset));
+
+        setView(startEye, isVertical ? startEye.clone().add(targetDir) : from.clone());
+
+        const distance = startEye.distanceTo(to);
+        const walkDuration = Math.max(MIN_WALK_DURATION_MS, (distance / WALK_SPEED_UNITS_PER_SEC) * 1000);
+
+        navigationStateRef.current = {
+            command,
+            pathFrom: from,
+            pathTo: to,
+            initialDir: currentDir,
+            targetDir,
+            offset,
+            phase: 'turn',
+            phaseStartTime: null,
+            phaseDuration: TURN_DURATION_MS,
+            turnDuration: TURN_DURATION_MS,
+            walkDuration,
+            progress: 0,
+            pausedAt: null,
+            loggedWalkStart: false
+        };
+
+        logNav('start', {
+            routeId: command.routeId,
+            segment: command.segment,
+            from: from.toArray(),
+            to: to.toArray(),
+            startEye: startEye.toArray(),
+            offset,
+            isVertical,
+            targetDir: targetDir.toArray(),
+            currentDir: currentDir.toArray(),
+            turnDurationMs: TURN_DURATION_MS,
+            walkDurationMs: walkDuration
+        });
+
+        activeNavigationRef.current = command;
+        navigationPausedRef.current = false;
+        navigationRafRef.current = requestAnimationFrame(runNavigationFrame);
+    }, [MIN_WALK_DURATION_MS, TURN_DURATION_MS, VERTICAL_EPS, WALK_SPEED_UNITS_PER_SEC, buildDirectionFromCamera, ensureBimWalkActive, logNav, navigationConfig, runNavigationFrame, setView, stopNavigation]);
+
+    const pauseNavigation = useCallback((command: SegmentNavigationCommand) => {
+        const active = activeNavigationRef.current;
+        const state = navigationStateRef.current;
+        if (!active || active.routeId !== command.routeId || active.segment !== command.segment || !state) return;
+        if (navigationPausedRef.current) return;
+
         navigationPausedRef.current = true;
-        navigationLastStartRef.current = null;
-        clearNavigationTimer();
-        console.log('[ThreeDView] Navigation paused:', { command, remaining });
-    }, [clearNavigationTimer]);
+        state.pausedAt = performance.now();
+        clearNavigationRaf();
+    }, [clearNavigationRaf]);
 
     const resumeNavigation = useCallback((command: SegmentNavigationCommand) => {
         const active = activeNavigationRef.current;
-        if (!active || active.routeId !== command.routeId) {
-            console.log('[ThreeDView] Resume ignored; no matching active navigation.', { command, active });
-            return;
-        }
-        if (!navigationPausedRef.current) {
-            console.log('[ThreeDView] Resume ignored; navigation not paused.');
-            return;
+        const state = navigationStateRef.current;
+        if (!active || active.routeId !== command.routeId || active.segment !== command.segment || !state) return;
+        if (!navigationPausedRef.current) return;
+
+        const now = performance.now();
+        if (state.pausedAt) {
+            const pausedDuration = now - state.pausedAt;
+            state.phaseStartTime = (state.phaseStartTime ?? now) + pausedDuration;
+            state.pausedAt = null;
         }
 
-        const remaining = navigationRemainingRef.current || 5000;
-        console.log('[ThreeDView] Resuming navigation simulation:', { command, remaining });
-        startNavigation({ ...command }, remaining);
-    }, [startNavigation]);
-
-    const stopNavigation = useCallback((command: SegmentNavigationCommand) => {
-        const active = activeNavigationRef.current;
-        console.log('[ThreeDView] Stopping navigation simulation.', { command, active });
-        clearNavigationTimer();
-        activeNavigationRef.current = null;
         navigationPausedRef.current = false;
-        navigationRemainingRef.current = 0;
-        navigationLastStartRef.current = null;
-    }, [clearNavigationTimer]);
+        navigationRafRef.current = requestAnimationFrame(runNavigationFrame);
+    }, [runNavigationFrame]);
 
     useEffect(() => {
         if (!navigationCommand) return;
-        console.log('[ThreeDView] Received navigation command:', navigationCommand);
+        if (lastNavCommandIdRef.current === navigationCommand.id) return;
+        lastNavCommandIdRef.current = navigationCommand.id;
 
         switch (navigationCommand.action) {
             case 'start':
-                startNavigation(navigationCommand);
+                void startNavigation(navigationCommand);
                 break;
             case 'pause':
                 pauseNavigation(navigationCommand);
@@ -421,8 +618,12 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
     }, [navigationCommand, pauseNavigation, resumeNavigation, startNavigation, stopNavigation]);
 
     useEffect(() => () => {
-        clearNavigationTimer();
-    }, [clearNavigationTimer]);
+        clearNavigationRaf();
+        navigationStateRef.current = null;
+        navigationPausedRef.current = false;
+        activeNavigationRef.current = null;
+        lastNavCommandIdRef.current = null;
+    }, [clearNavigationRaf]);
 
     const toVector4 = (p: any) => new THREE.Vector4(
         p?.x ?? (Array.isArray(p) ? p[0] ?? 0 : 0),
