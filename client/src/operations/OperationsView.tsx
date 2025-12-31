@@ -31,6 +31,7 @@ import CCTVPanelsColumn from './CCTVPanelsColumn';
 import { ConfigDataProvider, useConfigDataCtx } from './ConfigDataProvider';
 import { useProjectRoutes } from './useProjectData';
 import { ThreeDView } from './threeD/ThreeDView';
+import type { SegmentNavigationCommand, SegmentNavigationComplete } from './threeD/types';
 
 export default function OperationsView() {
     return (
@@ -96,6 +97,11 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         currentCCTVs: [],
         nextCCTVs: []
     });
+    const [pendingNavigation, setPendingNavigation] = useState<{ routeId: string; segment: number } | null>(null);
+    const [navigationCommand, setNavigationCommand] = useState<SegmentNavigationCommand | null>(null);
+    const navigationCommandIdRef = useRef(0);
+    const lastActiveNavCommandIdRef = useRef<number | null>(null);
+    const transitionResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [fullscreenCCTV, setFullscreenCCTV] = useState<ContentItem | null>(null);
 
@@ -146,6 +152,8 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
             setHiddenRoutes([]);
             setContentPanels([]);
             setActivePanel(null);
+            setPendingNavigation(null);
+            setNavigationCommand(null);
 
             if (patrolMode.active) {
                 setPatrolMode({
@@ -164,6 +172,14 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
             prevProjectRef.current = selectedProject;
         }
     }, [selectedProject, patrolMode.active]);
+
+    useEffect(() => {
+        return () => {
+            if (transitionResetRef.current) {
+                clearTimeout(transitionResetRef.current);
+            }
+        };
+    }, []);
 
     const displayBundles = useMemo<SegmentDisplayBundle[]>(() => buildDisplayBundles({
         validSelectedRoutes,
@@ -201,6 +217,40 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
 
     const handleAnchorClick = (anchorId: string): void => {
         console.log('[3D View] Anchor clicked:', anchorId);
+    };
+
+    useEffect(() => {
+        if (!pendingNavigation) return;
+        if (!patrolMode.active || patrolMode.paused || patrolMode.routeId !== pendingNavigation.routeId) return;
+
+        console.log('[Operations] Sending pending navigation to 3D:', pendingNavigation);
+        sendNavigationCommand('start', pendingNavigation.routeId, pendingNavigation.segment);
+        setPendingNavigation(null);
+    }, [patrolMode.active, patrolMode.paused, patrolMode.routeId, pendingNavigation]);
+
+    const sendNavigationCommand = (action: SegmentNavigationCommand['action'], routeId: string | null, segment: number): void => {
+        if (!routeId) return;
+        navigationCommandIdRef.current += 1;
+        const command: SegmentNavigationCommand = {
+            id: navigationCommandIdRef.current,
+            action,
+            routeId,
+            segment
+        };
+        if (action === 'start' || action === 'resume') {
+            lastActiveNavCommandIdRef.current = command.id;
+        }
+        console.log('[Operations] Dispatching navigation command to 3D:', command);
+        setNavigationCommand(command);
+    };
+
+    const scheduleTransitionReset = (delay: number = 2000) => {
+        if (transitionResetRef.current) {
+            clearTimeout(transitionResetRef.current);
+        }
+        transitionResetRef.current = setTimeout(() => {
+            setPatrolMode(prev => ({ ...prev, transitioning: false }));
+        }, delay);
     };
 
     const toggleRoute = (routeId: string): void => {
@@ -612,6 +662,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
             currentCCTVs,
             nextCCTVs
         });
+        setPendingNavigation({ routeId, segment: startSegment });
 
         const otherRoutes = selectedRoutes.filter(id => id !== routeId);
         setHiddenRoutes(otherRoutes);
@@ -620,14 +671,27 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     };
 
     const pausePatrol = () => {
+        if (!patrolMode.active || !patrolMode.routeId) return;
+        sendNavigationCommand('pause', patrolMode.routeId, patrolMode.currentSegment);
         setPatrolMode(prev => ({ ...prev, paused: true }));
     };
 
     const resumePatrol = () => {
+        if (!patrolMode.active || !patrolMode.routeId) return;
+        sendNavigationCommand('resume', patrolMode.routeId, patrolMode.currentSegment);
         setPatrolMode(prev => ({ ...prev, paused: false }));
     };
 
     const stopPatrol = (): void => {
+        const activeRouteId = patrolMode.routeId;
+        setPendingNavigation(null);
+        if (activeRouteId) {
+            sendNavigationCommand('stop', activeRouteId, patrolMode.currentSegment);
+        }
+        if (transitionResetRef.current) {
+            clearTimeout(transitionResetRef.current);
+        }
+        lastActiveNavCommandIdRef.current = null;
         setPatrolMode({
             active: false,
             routeId: null,
@@ -690,8 +754,13 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     const goToPreviousSegment = (): void => {
         if (patrolMode.currentSegment <= 1) return;
 
+        let nextSegmentTarget: { routeId: string; segment: number } | null = null;
         setPatrolMode(prev => {
             const newSegment = prev.currentSegment - 1;
+            if (!prev.routeId) return prev;
+            const route = routes.find(r => r.id === prev.routeId);
+            if (!route) return prev;
+            nextSegmentTarget = { routeId: prev.routeId, segment: newSegment };
             const currentCCTVs = getSegmentCCTVs(prev.routeId, newSegment);
             const nextCCTVs = getSegmentCCTVs(prev.routeId, newSegment + 1);
 
@@ -705,17 +774,23 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
             };
         });
 
-        setTimeout(() => {
-            setPatrolMode(prev => ({ ...prev, transitioning: false }));
-        }, 2000);
+        if (nextSegmentTarget) {
+            setPendingNavigation(nextSegmentTarget);
+        }
+
+        scheduleTransitionReset();
     };
 
     const goToNextSegment = (): void => {
+        let nextSegmentTarget: { routeId: string; segment: number } | null = null;
         setPatrolMode(prev => {
             const route = routes.find(r => r.id === prev.routeId);
             if (!route || prev.currentSegment >= route.segments) return prev;
 
             const newSegment = prev.currentSegment + 1;
+            if (prev.routeId) {
+                nextSegmentTarget = { routeId: prev.routeId, segment: newSegment };
+            }
             const currentCCTVs = getSegmentCCTVs(prev.routeId, newSegment);
             const nextCCTVs = newSegment < route.segments ? getSegmentCCTVs(prev.routeId, newSegment + 1) : [];
 
@@ -729,9 +804,61 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
             };
         });
 
-        setTimeout(() => {
-            setPatrolMode(prev => ({ ...prev, transitioning: false }));
-        }, 2000);
+        if (nextSegmentTarget) {
+            setPendingNavigation(nextSegmentTarget);
+        }
+
+        scheduleTransitionReset();
+    };
+
+    const handleNavigationComplete = (payload: SegmentNavigationComplete): void => {
+        console.log('[Operations] Received navigation completion from 3D:', payload);
+        const route = routes.find(r => r.id === payload.routeId);
+        if (!route) return;
+
+        const expectedCommandId = lastActiveNavCommandIdRef.current;
+        if (expectedCommandId && payload.commandId !== expectedCommandId) {
+            console.log('[Operations] Stale navigation completion ignored (command id mismatch).', { payload, expectedCommandId });
+            return;
+        }
+
+        let nextSegmentTarget: { routeId: string; segment: number } | null = null;
+
+        setPatrolMode(prev => {
+            if (!prev.active || prev.routeId !== payload.routeId) return prev;
+            if (prev.paused) {
+                console.log('[Operations] Patrol paused; ignoring navigation completion.');
+                return prev;
+            }
+
+            const completedSegment = prev.currentSegment;
+            if (payload.segment !== completedSegment) {
+                console.log('[Operations] Navigation completion segment mismatch; using current segment state.', { payload, current: completedSegment });
+            }
+
+            const nextSegment = completedSegment + 1;
+            if (nextSegment > route.segments) {
+                return { ...prev, transitioning: false };
+            }
+
+            const currentCCTVs = getSegmentCCTVs(payload.routeId, nextSegment);
+            const nextCCTVs = nextSegment < route.segments ? getSegmentCCTVs(payload.routeId, nextSegment + 1) : [];
+            nextSegmentTarget = { routeId: payload.routeId, segment: nextSegment };
+
+            return {
+                ...prev,
+                currentSegment: nextSegment,
+                currentCCTVs,
+                nextCCTVs,
+                transitioning: true,
+                countdown: 5
+            };
+        });
+
+        if (nextSegmentTarget) {
+            setPendingNavigation(nextSegmentTarget);
+            scheduleTransitionReset();
+        }
     };
 
     const getSegmentCCTVs = (routeId: string | null, segmentNum: number): ContentItem[] => {
@@ -945,7 +1072,12 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
                             />
                         )}
 
-                        <ThreeDView anchors={anchorsForThreeD} onAnchorClick={handleAnchorClick} />
+                        <ThreeDView
+                            anchors={anchorsForThreeD}
+                            onAnchorClick={handleAnchorClick}
+                            navigationCommand={navigationCommand}
+                            onNavigationComplete={handleNavigationComplete}
+                        />
                     </div>
                 </div>
 

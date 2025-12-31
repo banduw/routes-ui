@@ -78,3 +78,18 @@ export interface AnchorRefWithColor {
     anchor_name: string;
     color: HexColor;
 }
+
+export type NavigationCommandAction = 'start' | 'pause' | 'resume' | 'stop';
+
+export interface SegmentNavigationCommand {
+    id: number;
+    action: NavigationCommandAction;
+    routeId: string;
+    segment: number;
+}
+
+export interface SegmentNavigationComplete {
+    routeId: string;
+    segment: number;
+    commandId: number;
+}

@@ -1,7 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useConfigInfo } from '../../config/ConfigInfoContext';
-import type { AnchorRefWithColor } from './types';
-import type { BimConfig, BimDot, BimModel, BimSector, BimViewport, Building, Level } from './types';
+import type {
+    AnchorRefWithColor,
+    BimConfig,
+    BimDot,
+    BimModel,
+    BimSector,
+    BimViewport,
+    Building,
+    Level,
+    SegmentNavigationCommand,
+    SegmentNavigationComplete
+} from './types';
 import { discoverElementsByProps } from './element-discovery';
 import { CeilingDiscovery } from "./ceiling-discovery";
 import DotView from './DotView';
@@ -27,11 +37,15 @@ export type ThreeDViewProps = {
     anchors: AnchorRefWithColor[]
     bimConfig?: BimConfig | null;
     onAnchorClick: (anchor: string) => void
+    navigationCommand?: SegmentNavigationCommand | null;
+    onNavigationComplete?: (payload: SegmentNavigationComplete) => void;
 };
 
 export const ThreeDView: React.FC<ThreeDViewProps> = ({
     anchors,
-    onAnchorClick: onDotClick
+    onAnchorClick: onDotClick,
+    navigationCommand = null,
+    onNavigationComplete
 }) => {
     const { configInfo } = useConfigInfo();
 
@@ -46,6 +60,11 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
     const pendingLevelRef = useRef<string | null>(null);
     const ceilingDiscovery = useRef(new CeilingDiscovery())
     const [clickedAnchor, setClickedAnchor] = useState<string>()
+    const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const activeNavigationRef = useRef<SegmentNavigationCommand | null>(null);
+    const navigationPausedRef = useRef(false);
+    const navigationRemainingRef = useRef<number>(0);
+    const navigationLastStartRef = useRef<number | null>(null);
 
     const buildingOptions = useMemo(() => {
         return configInfo?.bimConfig?.buildings ?? []
@@ -297,6 +316,113 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         setClickedAnchor(group.anchor)
         onDotClick(group.anchor)
     }, []);
+
+    const clearNavigationTimer = useCallback(() => {
+        if (navigationTimerRef.current) {
+            clearTimeout(navigationTimerRef.current);
+            navigationTimerRef.current = null;
+        }
+    }, []);
+
+    const notifyNavigationComplete = useCallback((command: SegmentNavigationCommand) => {
+        if (!onNavigationComplete) return;
+        onNavigationComplete({
+            routeId: command.routeId,
+            segment: command.segment,
+            commandId: command.id
+        });
+    }, [onNavigationComplete]);
+
+    const startNavigation = useCallback((command: SegmentNavigationCommand, durationMs: number = 5000) => {
+        clearNavigationTimer();
+        activeNavigationRef.current = command;
+        navigationPausedRef.current = false;
+        navigationRemainingRef.current = durationMs;
+        navigationLastStartRef.current = performance.now();
+        console.log('[ThreeDView] Starting navigation simulation:', { command, durationMs });
+
+        navigationTimerRef.current = setTimeout(() => {
+            console.log('[ThreeDView] Navigation simulation complete:', command);
+            activeNavigationRef.current = null;
+            navigationTimerRef.current = null;
+            navigationRemainingRef.current = 0;
+            navigationLastStartRef.current = null;
+            notifyNavigationComplete(command);
+        }, durationMs);
+    }, [clearNavigationTimer, notifyNavigationComplete]);
+
+    const pauseNavigation = useCallback((command: SegmentNavigationCommand) => {
+        const active = activeNavigationRef.current;
+        if (!active || active.routeId !== command.routeId) {
+            console.log('[ThreeDView] Pause ignored; no matching active navigation.', { command, active });
+            return;
+        }
+        if (navigationPausedRef.current) {
+            console.log('[ThreeDView] Pause ignored; navigation already paused.');
+            return;
+        }
+
+        const now = performance.now();
+        const elapsed = navigationLastStartRef.current ? now - navigationLastStartRef.current : 0;
+        const remaining = Math.max(0, (navigationRemainingRef.current || 0) - elapsed);
+        navigationRemainingRef.current = remaining;
+        navigationPausedRef.current = true;
+        navigationLastStartRef.current = null;
+        clearNavigationTimer();
+        console.log('[ThreeDView] Navigation paused:', { command, remaining });
+    }, [clearNavigationTimer]);
+
+    const resumeNavigation = useCallback((command: SegmentNavigationCommand) => {
+        const active = activeNavigationRef.current;
+        if (!active || active.routeId !== command.routeId) {
+            console.log('[ThreeDView] Resume ignored; no matching active navigation.', { command, active });
+            return;
+        }
+        if (!navigationPausedRef.current) {
+            console.log('[ThreeDView] Resume ignored; navigation not paused.');
+            return;
+        }
+
+        const remaining = navigationRemainingRef.current || 5000;
+        console.log('[ThreeDView] Resuming navigation simulation:', { command, remaining });
+        startNavigation({ ...command }, remaining);
+    }, [startNavigation]);
+
+    const stopNavigation = useCallback((command: SegmentNavigationCommand) => {
+        const active = activeNavigationRef.current;
+        console.log('[ThreeDView] Stopping navigation simulation.', { command, active });
+        clearNavigationTimer();
+        activeNavigationRef.current = null;
+        navigationPausedRef.current = false;
+        navigationRemainingRef.current = 0;
+        navigationLastStartRef.current = null;
+    }, [clearNavigationTimer]);
+
+    useEffect(() => {
+        if (!navigationCommand) return;
+        console.log('[ThreeDView] Received navigation command:', navigationCommand);
+
+        switch (navigationCommand.action) {
+            case 'start':
+                startNavigation(navigationCommand);
+                break;
+            case 'pause':
+                pauseNavigation(navigationCommand);
+                break;
+            case 'resume':
+                resumeNavigation(navigationCommand);
+                break;
+            case 'stop':
+                stopNavigation(navigationCommand);
+                break;
+            default:
+                break;
+        }
+    }, [navigationCommand, pauseNavigation, resumeNavigation, startNavigation, stopNavigation]);
+
+    useEffect(() => () => {
+        clearNavigationTimer();
+    }, [clearNavigationTimer]);
 
     const toVector4 = (p: any) => new THREE.Vector4(
         p?.x ?? (Array.isArray(p) ? p[0] ?? 0 : 0),
