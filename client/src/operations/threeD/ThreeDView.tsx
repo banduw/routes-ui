@@ -18,6 +18,7 @@ import { CeilingDiscovery } from "./ceiling-discovery";
 import DotView from './DotView';
 import ForgeViewer from './ForgeViewer';
 import ThreeDToolbar from './ThreeDToolbar';
+import { RouteMeshRenderer, type RouteSegmentInput } from './RouteMeshRenderer';
 import type { AnchorGroup } from './types';
 import { box3FromObject } from './utilities';
 import { useSegmentNavigation } from './useSegmentNavigation';
@@ -56,6 +57,7 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
 
     const hostContainer = useRef<HTMLDivElement | null>(null);
     const forgeViewerRef = useRef<Autodesk.Viewing.GuiViewer3D | null>(null);
+    const routeRendererRef = useRef<RouteMeshRenderer | null>(null);
 
     const toHideDbIds = useRef<Map<Autodesk.Viewing.Model, number[]>>(new Map());
     const [viewerReady, setViewerReady] = useState(false);
@@ -330,6 +332,44 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
         console.log('[3D View] Routes for visualization:', summary);
     }, [routes]);
 
+    useEffect(() => {
+        const renderer = routeRendererRef.current;
+        if (!renderer) {
+            console.log('[3D View] Route renderer not ready');
+            return;
+        }
+        if (!viewerReady) {
+            renderer.clear();
+            return;
+        }
+
+        if (!routes || routes.length === 0) {
+            renderer.clear();
+            return;
+        }
+
+        const segments: RouteSegmentInput[] = [];
+        routes.forEach((route) => {
+            (route.segments ?? []).forEach((seg) => {
+                const viewportId = seg.viewport_id || 'default';
+                const points = [
+                    new THREE.Vector3(seg.from.x, seg.from.y, seg.from.z),
+                    new THREE.Vector3(seg.to.x, seg.to.y, seg.to.z)
+                ];
+                segments.push({
+                    segmentId: seg.id ?? `${route.id}-${seg.segmentIndex ?? 0}`,
+                    viewportId,
+                    points,
+                    color: route.color ?? seg.color,
+                    routeId: route.id,
+                    segmentIndex: seg.segmentIndex
+                });
+            });
+        });
+
+        renderer.displaySegments(segments, { materialType: 'basic' });
+    }, [routes, viewerReady]);
+
     const handleAnchorClick = useCallback((group: AnchorGroup) => {
         setClickedAnchor(group.anchor)
         onDotClick(group.anchor)
@@ -544,6 +584,19 @@ export const ThreeDView: React.FC<ThreeDViewProps> = ({
             ceilingDiscovery.current.clear()
         }
     }, [forgeModel, viewerReady])
+
+    useEffect(() => {
+        const viewer = forgeViewerRef.current;
+        if (!viewer || !viewerReady) return;
+
+        const renderer = new RouteMeshRenderer(viewer);
+        routeRendererRef.current = renderer;
+
+        return () => {
+            renderer.dispose();
+            routeRendererRef.current = null;
+        };
+    }, [forgeModel, viewerReady]);
 
     const onModelLoaded = useCallback(async (viewer: Autodesk.Viewing.GuiViewer3D, _viewables3d?: string[], _viewables2d?: string[]) => {
         setViewerReady(false);

@@ -62,10 +62,20 @@ declare namespace THREE {
         max: Vector3;
         set(min: Vector3, max: Vector3): this;
         setFromPoints(points: Vector3[]): this;
+        expandByPoint(point: Vector3): this;
         containsPoint(point: Vector3): boolean
+        getCenter(target: Vector3): Vector3;
+        getBoundingSphere(target: Sphere): Sphere;
         makeEmpty(): this;
         union(box: Box3): this;
         isEmpty(): boolean;
+    }
+
+    class Sphere {
+        constructor(center?: Vector3, radius?: number);
+        center: Vector3;
+        radius: number;
+        set(center: Vector3, radius: number): this;
     }
 
     // Minimal BufferGeometry used in code
@@ -102,6 +112,60 @@ declare namespace THREE {
     class LineSegments extends Object3D {
         constructor(geometry: BufferGeometry, material: Material);
     }
+
+    class Curve<T = any> {
+        getPoint(t: number): T;
+        getTangent?(t: number): T;
+    }
+
+    class SplineCurve3 extends Curve<Vector3> {
+        constructor(points?: Vector3[]);
+        points: Vector3[];
+        getPoint(t: number): Vector3;
+    }
+
+    class CatmullRomCurve3 extends SplineCurve3 {
+        constructor(points?: Vector3[], closed?: boolean, curveType?: string, tension?: number);
+        closed: boolean;
+        tension: number;
+    }
+
+    class TubeGeometry extends Geometry {
+        constructor(
+            path: Curve<Vector3>,
+            tubularSegments?: number,
+            radius?: number,
+            radialSegments?: number,
+            closed?: boolean
+        );
+    }
+
+    class Geometry {
+        dispose(): void;
+    }
+
+    class Mesh extends Object3D {
+        constructor(geometry: Geometry, material: Material | Material[]);
+        geometry: any;
+        material: Material | Material[];
+        renderOrder: number;
+        userData: Record<string, any>;
+    }
+
+    class MeshBasicMaterial extends Material {
+        constructor(params?: {
+            color?: string | number;
+            transparent?: boolean;
+            opacity?: number;
+            depthTest?: boolean;
+            depthWrite?: boolean;
+            side?: number;
+        });
+    }
+
+    class MeshPhongMaterial extends MeshBasicMaterial { }
+
+    const DoubleSide: number;
 }
 
 
@@ -119,4 +183,13 @@ declare const THREE: {
     Float32BufferAttribute: { new(array: ArrayLike<number>, itemSize: number): THREE.Float32BufferAttribute; prototype: THREE.Float32BufferAttribute };
     LineBasicMaterial: { new(parameters?: { linewidth?: number }): THREE.LineBasicMaterial; prototype: THREE.LineBasicMaterial };
     LineSegments: { new(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.LineSegments; prototype: THREE.LineSegments };
+    Curve: { new<T = any>(): THREE.Curve<T>; prototype: THREE.Curve<any> };
+    SplineCurve3: { new(points?: THREE.Vector3[]): THREE.SplineCurve3; prototype: THREE.SplineCurve3 };
+    CatmullRomCurve3: { new(points?: THREE.Vector3[], closed?: boolean, curveType?: string, tension?: number): THREE.CatmullRomCurve3; prototype: THREE.CatmullRomCurve3 };
+    TubeGeometry: { new(path: THREE.Curve<THREE.Vector3>, tubularSegments?: number, radius?: number, radialSegments?: number, closed?: boolean): THREE.TubeGeometry; prototype: THREE.TubeGeometry };
+    Geometry: { new(): THREE.Geometry; prototype: THREE.Geometry };
+    Mesh: { new(geometry: THREE.Geometry, material: THREE.Material | THREE.Material[]): THREE.Mesh; prototype: THREE.Mesh };
+    MeshBasicMaterial: { new(params?: any): THREE.MeshBasicMaterial; prototype: THREE.MeshBasicMaterial };
+    MeshPhongMaterial: { new(params?: any): THREE.MeshPhongMaterial; prototype: THREE.MeshPhongMaterial };
+    DoubleSide: number;
 };
