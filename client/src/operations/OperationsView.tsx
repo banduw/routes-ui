@@ -202,6 +202,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
     ]);
 
     const anchorsForThreeD = useMemo(() => {
+        if (patrolMode.active) return [];
         const anchorMap = new Map<string, string>();
 
         displayBundles.forEach(bundle => {
@@ -213,7 +214,7 @@ function OperationsViewContent({ data }: { data: VirtualPatrolData }) {
         });
 
         return Array.from(anchorMap.entries()).map(([anchor_name, color]) => ({ anchor_name, color }));
-    }, [displayBundles]);
+    }, [displayBundles, patrolMode.active]);
 
     const handleAnchorClick = (anchorId: string): void => {
         console.log('[3D View] Anchor clicked:', anchorId);
